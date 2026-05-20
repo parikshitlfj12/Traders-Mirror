@@ -1,0 +1,237 @@
+// Trader's Mirror — Prisma schema
+// Source of truth: PRD §5. Do not invent new tables without approval.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// USERS — simple email/password auth
+// =============================================================================
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  displayName   String?
+  timezone      String   @default("UTC")
+  primaryMarket Market   @default(CRYPTO)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  trades     Trade[]
+  voiceNotes VoiceNote[]
+  projects   Project[]
+}
+
+enum Market {
+  FOREX
+  CRYPTO
+  BOTH
+}
+
+// =============================================================================
+// PROJECTS — campaign container (replaces the old Contract concept).
+// Holds financial parameters + behavioral rules together.
+// =============================================================================
+model Project {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name     String
+  startsAt DateTime
+  endsAt   DateTime
+  isActive Boolean  @default(true)
+
+  // Financial parameters — the "plan"
+  startingCapital Decimal @db.Decimal(18, 2)
+  maxDrawdown     Decimal @db.Decimal(18, 2) // absolute amount in account currency
+  dailyDrawdown   Decimal @db.Decimal(18, 2) // absolute amount in account currency
+  profitTarget    Decimal @db.Decimal(18, 2) // absolute amount in account currency
+
+  // Behavioral rules — natural-language source + structured children
+  rawText   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rules      Rule[]
+  violations RuleViolation[]
+  trades     Trade[]
+  voiceNotes VoiceNote[]
+
+  @@index([userId, isActive])
+}
+
+model Rule {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  category    RuleCategory
+  description String
+  params      Json // { max: 3, period: "day" } — machine-checkable
+  severity    Severity     @default(MEDIUM)
+  version     Int          @default(1) // bumped when edited mid-project
+  isActive    Boolean      @default(true) // false = superseded by newer version
+  createdAt   DateTime     @default(now())
+
+  violations RuleViolation[]
+
+  @@index([projectId, isActive])
+}
+
+enum RuleCategory {
+  MAX_TRADES_PER_DAY
+  MAX_TRADES_PER_WEEK
+  MAX_DAILY_LOSS
+  MAX_WEEKLY_LOSS
+  MAX_RISK_PER_TRADE
+  POSITION_SIZE_CAP
+  NO_REVENGE_TRADING
+  NO_SIZE_INCREASE_AFTER_LOSS
+  APPROVED_SETUPS_ONLY
+  ALLOWED_SESSIONS_ONLY
+  NO_FOMO_ENTRIES
+  REQUIRES_CONFIRMATION
+  CUSTOM
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model RuleViolation {
+  id        String  @id @default(uuid())
+  ruleId    String
+  rule      Rule    @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  voiceNoteId String?
+  tradeId     String?
+
+  detectedBy String // "ai" | "system" | "manual"
+  evidence   String   @db.Text
+  detectedAt DateTime @default(now())
+
+  @@index([projectId, detectedAt])
+}
+
+// =============================================================================
+// TRADES — manual entry; AI-assisted field extraction when a screenshot is present
+// =============================================================================
+model Trade {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String? // null = freehand trade
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  symbol     String // "EURUSD", "BTCUSDT"
+  market     Market
+  direction  Direction
+  size       Decimal   @db.Decimal(18, 8)
+  entryPrice Decimal   @db.Decimal(18, 8)
+  exitPrice  Decimal?  @db.Decimal(18, 8)
+  pnl        Decimal?  @db.Decimal(18, 2)
+  rMultiple  Decimal?  @db.Decimal(8, 2)
+
+  openedAt DateTime
+  closedAt DateTime?
+  status   TradeStatus @default(OPEN)
+
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  voiceNotes VoiceNote[]
+
+  @@index([userId, openedAt])
+  @@index([projectId, openedAt])
+}
+
+enum Direction {
+  LONG
+  SHORT
+}
+
+enum TradeStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+// =============================================================================
+// VOICE NOTES — the heart of the product
+// =============================================================================
+model VoiceNote {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String? // null = freehand voice note
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  tradeId String?
+  trade   Trade?  @relation(fields: [tradeId], references: [id], onDelete: SetNull)
+
+  audioPath       String? // local file path in dev
+  audioDurationMs Int?
+  transcript      String  @db.Text
+
+  screenshotPath String? // null when analysisMode = QUICK
+  analysisMode   AnalysisMode @default(QUICK)
+
+  payload        Json // BehavioralPayload (see PRD §6)
+  payloadVersion String @default("v1")
+
+  aiProvider String // "gemini-2.5-flash-lite", "gpt-4o-mini", etc.
+  aiTier     String // "cheap" | "balanced" | "premium" | "free"
+
+  context   NoteContext @default(POST_TRADE)
+  createdAt DateTime    @default(now())
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([tradeId])
+}
+
+enum NoteContext {
+  PRE_TRADE
+  POST_TRADE
+  END_OF_DAY
+  GENERAL
+}
+
+enum AnalysisMode {
+  QUICK // voice transcript only
+  DEEP // voice transcript + screenshot (vision)
+}
+
+// =============================================================================
+// AI USAGE LOG — daily spend tracking
+// =============================================================================
+model AiUsageLog {
+  id            String   @id @default(uuid())
+  userId        String?
+  provider      String // "gemini" | "openai" | "anthropic" | "ollama"
+  model         String
+  operation     String // "transcribe" | "analyze_quick" | "analyze_deep" | "parse_rules"
+  inputTokens   Int?
+  outputTokens  Int?
+  imageTokens   Int? // populated only for vision (DEEP) calls
+  estimatedCost Decimal  @db.Decimal(10, 6)
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+}
