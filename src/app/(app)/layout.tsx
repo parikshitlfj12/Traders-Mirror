@@ -14,11 +14,12 @@ export default async function AppLayout({
     <div className="flex min-h-screen flex-col bg-background">
       <TopNav user={{ email: user.email, displayName: user.displayName }} />
       {/*
-        `flex flex-col` lets pages opt into vertical centering via `flex-1`
-        on their section. `items-center` then guarantees cross-axis centering
-        for every child — `mx-auto` alone is unreliable on flex-column items.
+        Padding matches the nav's inner container (px-4) so headings and
+        cards line up with the brand on the left and the user menu on the
+        right at every breakpoint. Pages that want centered hero content
+        (Home, Projects) opt in with their own `items-center` on the section.
       */}
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6 sm:py-8">
         {children}
       </main>
     </div>

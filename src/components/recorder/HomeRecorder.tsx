@@ -35,6 +35,18 @@ function fmt(ms: number): string {
   return `${m}:${s}`;
 }
 
+// Mirror of EXTENSION_BY_MIME in lib/audio.ts — server applies the same
+// mapping when persisting, this only affects the File's display filename.
+function pickExtension(mimeType: string): string {
+  const base = mimeType.toLowerCase().split(";")[0].trim();
+  if (base.startsWith("audio/webm")) return "webm";
+  if (base.startsWith("audio/mp4")) return "m4a";
+  if (base.startsWith("audio/aac")) return "aac";
+  if (base.startsWith("audio/ogg")) return "ogg";
+  if (base.startsWith("audio/wav")) return "wav";
+  return "audio";
+}
+
 export function HomeRecorder() {
   const recorder = useRecorder();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -81,15 +93,47 @@ export function HomeRecorder() {
     setPhase({ kind: "idle" });
   }, []);
 
-  const onSubmit = useCallback(() => {
+  const onSubmit = useCallback(async () => {
     if (phase.kind !== "review") return;
-    setPhase({ kind: "uploading", recording: phase.recording });
-    // POST /api/voice-notes/upload ships once an AI provider is configured.
-    // For now, a friendly placeholder so the round-trip is visible.
-    toast.info("Upload pipeline lands once your AI provider key is wired up.", {
-      duration: 4000,
-    });
-    setTimeout(() => setPhase({ kind: "idle" }), 1100);
+    const recording = phase.recording;
+    setPhase({ kind: "uploading", recording });
+
+    try {
+      const ext = pickExtension(recording.mimeType);
+      const file = new File([recording.blob], `voice-note.${ext}`, {
+        type: recording.mimeType,
+      });
+      const formData = new FormData();
+      formData.append("audio", file);
+      formData.append(
+        "durationMs",
+        String(Math.max(1, Math.round(recording.durationMs))),
+      );
+      formData.append("mimeType", recording.mimeType);
+
+      const response = await fetch("/api/voice-notes/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const json: {
+        data: { voiceNoteId: string; audioPath: string } | null;
+        error: { message: string; code?: string } | null;
+      } = await response.json();
+
+      if (!response.ok || !json.data) {
+        throw new Error(json.error?.message ?? "Upload failed.");
+      }
+
+      toast.success("Voice note saved.", {
+        description: `Stored at ${json.data.audioPath}. Real analysis lands once an AI key is wired up.`,
+        duration: 4500,
+      });
+      setPhase({ kind: "idle" });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Upload failed.";
+      toast.error("Couldn't save voice note", { description: message });
+      setPhase({ kind: "review", recording });
+    }
   }, [phase]);
 
   const micState: MicButtonState = (() => {

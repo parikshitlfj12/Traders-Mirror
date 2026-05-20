@@ -22,11 +22,13 @@ export default async function SettingsPage() {
   ];
 
   return (
-    <section className="mx-auto flex w-full max-w-xl flex-col gap-5 py-2 sm:gap-6 sm:py-4">
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-5 py-2 sm:gap-6 sm:py-4">
       <h1 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
         Settings
       </h1>
-      <Card>
+      {/* Card stays narrow for readable label/value rows; the section itself
+          is full-width so the heading aligns with the nav edges. */}
+      <Card className="w-full max-w-xl">
         <CardHeader>
           <CardTitle>Account</CardTitle>
           <CardDescription>

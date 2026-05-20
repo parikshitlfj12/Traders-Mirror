@@ -26,11 +26,29 @@ const EXTENSION_BY_MIME: Record<string, string> = {
   "audio/x-wav": "wav",
 };
 
+// Reverse of EXTENSION_BY_MIME, used by the audio streaming endpoint so it
+// can serve the file with the right Content-Type without storing the MIME
+// separately in the database.
+const MIME_BY_EXTENSION: Record<string, string> = {
+  webm: "audio/webm",
+  m4a: "audio/mp4",
+  mp4: "audio/mp4",
+  aac: "audio/aac",
+  ogg: "audio/ogg",
+  wav: "audio/wav",
+};
+
 function pickExtension(mimeType: string): string {
   const lower = mimeType.toLowerCase();
   if (EXTENSION_BY_MIME[lower]) return EXTENSION_BY_MIME[lower];
   const base = lower.split(";")[0].trim();
   return EXTENSION_BY_MIME[base] ?? "audio";
+}
+
+/** Best-effort MIME lookup from a stored audio file's path/extension. */
+export function audioMimeFromPath(filepath: string): string {
+  const ext = path.extname(filepath).slice(1).toLowerCase();
+  return MIME_BY_EXTENSION[ext] ?? "application/octet-stream";
 }
 
 export interface SavedAudio {
