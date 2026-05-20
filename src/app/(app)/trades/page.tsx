@@ -4,7 +4,7 @@ export const metadata: Metadata = { title: "Trades" };
 
 export default function TradesPage() {
   return (
-    <section className="mx-auto flex w-full max-w-2xl flex-col items-center justify-center gap-2 py-12 text-center sm:py-20 md:py-24">
+    <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-2 text-center">
       <h1 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
         Trades
       </h1>

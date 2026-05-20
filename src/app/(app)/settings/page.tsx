@@ -7,12 +7,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { requireUser } from "@/lib/auth";
+import { requirePageUser } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-  const user = await requireUser();
+  const user = await requirePageUser();
 
   const rows: ReadonlyArray<{ label: string; value: string }> = [
     { label: "Email", value: user.email },

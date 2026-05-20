@@ -53,9 +53,9 @@ export function MobileNav({ items, user }: MobileNavProps) {
       </SheetTrigger>
       <SheetContent side="right" className="w-72 sm:max-w-sm">
         <SheetHeader>
-          <SheetTitle>Menu</SheetTitle>
+          <SheetTitle>{user.displayName ?? user.email}</SheetTitle>
           <SheetDescription className="break-all">
-            Signed in as {user.displayName ?? user.email}
+            Welcome to Trader&apos;s Mirror
           </SheetDescription>
         </SheetHeader>
         <nav className="flex flex-col px-2 pb-2">

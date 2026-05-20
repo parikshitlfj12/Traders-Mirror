@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import bcrypt from "bcrypt";
 import type { User } from "@prisma/client";
 import { prisma } from "./prisma";
@@ -44,9 +45,25 @@ export async function getCurrentUser(): Promise<User | null> {
   return prisma.user.findUnique({ where: { id: userId } });
 }
 
+/**
+ * For API route handlers. Throws `UnauthorizedError` so the `handle` wrapper
+ * in lib/api.ts can convert it to a clean 401 response.
+ */
 export async function requireUser(): Promise<User> {
   const user = await getCurrentUser();
   if (!user) throw new UnauthorizedError();
+  return user;
+}
+
+/**
+ * For server components / pages. Calls `redirect("/login")` directly so
+ * Next.js sees a normal control-flow signal — avoids the noisy "unhandled
+ * error" stack trace that `throw new UnauthorizedError()` produces during
+ * dev compilation when a page renders in parallel with a redirecting layout.
+ */
+export async function requirePageUser(): Promise<User> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
   return user;
 }
 
