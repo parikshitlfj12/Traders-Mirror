@@ -4,8 +4,9 @@ import { randomUUID } from "node:crypto";
 
 // =============================================================================
 // Audio file storage (PRD §3, §11 — local FS in MVP; cloud blob later).
-// Files live under AUDIO_STORAGE_DIR/{userId}/{timestamp}-{uuid}.{ext}
-// so deleting a user cascades cleanly and per-user listings are cheap.
+// Files live under AUDIO_STORAGE_DIR/{userId}/{tradeId}/{timestamp}-{uuid}.{ext}
+// so deleting a user cascades cleanly, per-user listings are cheap, and every
+// recording sits next to its trade-mates for easy ops debugging.
 // =============================================================================
 
 const STORAGE_DIR = process.env.AUDIO_STORAGE_DIR ?? "./uploads/audio";
@@ -64,6 +65,7 @@ export async function saveAudio(params: {
   buffer: Buffer;
   mimeType: string;
   userId: string;
+  tradeId: string;
 }): Promise<SavedAudio> {
   if (params.buffer.length === 0) {
     throw new Error("Empty audio buffer");
@@ -74,7 +76,7 @@ export async function saveAudio(params: {
     );
   }
 
-  const dir = path.resolve(STORAGE_DIR, params.userId);
+  const dir = path.resolve(STORAGE_DIR, params.userId, params.tradeId);
   await fs.mkdir(dir, { recursive: true });
 
   const extension = pickExtension(params.mimeType);

@@ -1,4 +1,4 @@
-import type { BehavioralPayload } from "./schema";
+import type { BehavioralPayload, TradeSummaryAiPayload } from "./schema";
 
 // =============================================================================
 // AI provider abstraction — PRD §7.
@@ -11,6 +11,7 @@ export type AITier = "cheap" | "balanced" | "premium" | "free";
 
 export type AIProviderName =
   | "openai"
+  | "deepgram"
   | "gemini"
   | "anthropic"
   | "ollama"
@@ -20,6 +21,7 @@ export type AIOperation =
   | "transcribe"
   | "analyze_quick"
   | "analyze_deep"
+  | "summarize_trade"
   | "parse_rules";
 
 export interface ProviderInvocation {
@@ -58,16 +60,75 @@ export interface ProjectContextForAnalysis {
   }>;
 }
 
+/**
+ * Compact view of what's already known about the parent Trade — surfaced to
+ * the model when a follow-up recording is added so the analysis can refine
+ * (not duplicate) prior extraction work. See PRD §1.7 for the project-level
+ * analogue.
+ *
+ * Sized for cheap injection (target < 1500 tokens): we send the last K
+ * transcripts verbatim plus a tiny field snapshot, not full payloads.
+ */
+export interface PriorTradeContext {
+  /** Trade fields populated so far (after merge of earlier extractions). */
+  knownFields: {
+    symbol: string | null;
+    direction: "LONG" | "SHORT" | null;
+    entryPrice: number | null;
+    exitPrice: number | null;
+    size: number | null;
+    pnl: number | null;
+  };
+  /**
+   * Earlier voice notes on this trade, oldest-first. Capped by the upload
+   * route (defaults to last 10) so the prompt stays bounded.
+   */
+  priorRecordings: ReadonlyArray<{
+    id: string;
+    createdAt: string;
+    transcript: string;
+  }>;
+}
+
 export interface QuickAnalysisInput {
   transcript: string;
   userId: string;
   primaryMarket: "FOREX" | "CRYPTO" | "BOTH";
   projectContext?: ProjectContextForAnalysis;
+  /** Set when this recording is the Nth (N>1) on an existing trade. */
+  priorContext?: PriorTradeContext;
 }
 
 export interface DeepAnalysisInput extends QuickAnalysisInput {
   imageAbsolutePath: string;
   imageMimeType: string;
+}
+
+export interface SummarizeTradeInput {
+  userId: string;
+  primaryMarket: "FOREX" | "CRYPTO" | "BOTH";
+  /** Trade market fields as currently persisted (after all merges/edits). */
+  trade: {
+    symbol: string | null;
+    direction: "LONG" | "SHORT" | null;
+    size: number | null;
+    entryPrice: number | null;
+    exitPrice: number | null;
+    pnl: number | null;
+    openedAt: string;
+    closedAt: string | null;
+  };
+  /** Oldest-first chronological list of every recording on the trade. */
+  recordings: ReadonlyArray<{
+    id: string;
+    createdAt: string;
+    transcript: string;
+    payload: BehavioralPayload | null;
+  }>;
+}
+
+export interface SummarizeTradeResult extends ProviderInvocation {
+  payload: TradeSummaryAiPayload;
 }
 
 export interface AIProvider {
@@ -78,4 +139,6 @@ export interface AIProvider {
   analyzeQuick(input: QuickAnalysisInput): Promise<AnalysisResult>;
   /** Optional — provider may not support vision. Phase 4 territory. */
   analyzeDeep?(input: DeepAnalysisInput): Promise<AnalysisResult>;
+  /** Optional — cross-recording summary. Composite delegates to the analyzer. */
+  summarizeTrade?(input: SummarizeTradeInput): Promise<SummarizeTradeResult>;
 }

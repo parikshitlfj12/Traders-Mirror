@@ -58,6 +58,12 @@ export async function checkBudget(
 
 export interface LogAIUsageInput {
   userId?: string | null;
+  /**
+   * Attribution to the recording the spend belongs to. Left null for
+   * non-note operations (rule parsing, dev tooling) so the ledger stays
+   * general-purpose.
+   */
+  voiceNoteId?: string | null;
   // Stored as a freeform `String` in the DB so future providers don't require
   // a migration. Pass an `AIProviderName` for the known set.
   provider: AIProviderName | (string & {});
@@ -71,19 +77,27 @@ export interface LogAIUsageInput {
 
 /**
  * Call AFTER every provider invocation (including failures with partial usage)
- * to keep spend tracking honest.
+ * to keep spend tracking honest. Accepts a single entry or a list — the bulk
+ * form is useful inside the upload route, where we want to write all usage
+ * rows in one round-trip *after* the VoiceNote row exists.
  */
-export async function logAIUsage(input: LogAIUsageInput): Promise<void> {
-  await prisma.aiUsageLog.create({
-    data: {
-      userId: input.userId ?? null,
-      provider: input.provider,
-      model: input.model,
-      operation: input.operation,
-      inputTokens: input.inputTokens ?? null,
-      outputTokens: input.outputTokens ?? null,
-      imageTokens: input.imageTokens ?? null,
-      estimatedCost: input.estimatedCostUsd,
-    },
+export async function logAIUsage(
+  input: LogAIUsageInput | ReadonlyArray<LogAIUsageInput>,
+): Promise<void> {
+  const entries = Array.isArray(input) ? input : [input];
+  if (entries.length === 0) return;
+
+  await prisma.aiUsageLog.createMany({
+    data: entries.map((e) => ({
+      userId: e.userId ?? null,
+      voiceNoteId: e.voiceNoteId ?? null,
+      provider: e.provider,
+      model: e.model,
+      operation: e.operation,
+      inputTokens: e.inputTokens ?? null,
+      outputTokens: e.outputTokens ?? null,
+      imageTokens: e.imageTokens ?? null,
+      estimatedCost: e.estimatedCostUsd,
+    })),
   });
 }

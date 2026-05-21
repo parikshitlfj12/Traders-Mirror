@@ -126,28 +126,44 @@ model RuleViolation {
 }
 
 // =============================================================================
-// TRADES — manual entry; AI-assisted field extraction when a screenshot is present
+// TRADES — the atomic unit. Auto-created when a recording is analysed.
+// All market fields are nullable: a fresh trade in TODO has nothing filled in;
+// AI extraction (or the user) fills them in over time. See PRD §1.4 + §5.
 // =============================================================================
 model Trade {
   id     String @id @default(uuid())
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  projectId String? // null = freehand trade
+  projectId String?  // null = freehand trade
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  symbol     String // "EURUSD", "BTCUSDT"
-  market     Market
-  direction  Direction
-  size       Decimal   @db.Decimal(18, 8)
-  entryPrice Decimal   @db.Decimal(18, 8)
-  exitPrice  Decimal?  @db.Decimal(18, 8)
-  pnl        Decimal?  @db.Decimal(18, 2)
-  rMultiple  Decimal?  @db.Decimal(8, 2)
+  // Market fields — all nullable. Populated by AI extraction (when confidence
+  // >= MERGE_CONFIDENCE_THRESHOLD and the slot is still null) or by the user.
+  symbol     String?
+  market     Market?
+  direction  Direction?
+  size       Decimal?   @db.Decimal(18, 8)
+  entryPrice Decimal?   @db.Decimal(18, 8)
+  exitPrice  Decimal?   @db.Decimal(18, 8)
+  pnl        Decimal?   @db.Decimal(18, 2)
+  rMultiple  Decimal?   @db.Decimal(8, 2)
 
-  openedAt DateTime
+  openedAt DateTime    @default(now()) // best-known open time; defaults to creation
   closedAt DateTime?
-  status   TradeStatus @default(OPEN)
+  status   TradeStatus @default(TODO)
+
+  // Per-field provenance so the UI can render confidence badges + "AI inferred"
+  // hints. Shape: Record<TradeMarketField, { source: "ai" | "user", confidence?: number, voiceNoteId?: string, at: string }>.
+  // Validated by Zod (TradeFieldSourcesSchema) on every write — not free-form JSON.
+  fieldSources Json?
+
+  // Cross-recording behavioural summary generated on demand via the
+  // `/api/trades/[id]/summarize` endpoint. Validated by TradeSummaryV1 on
+  // every read/write (see src/lib/ai/schema.ts). Carries the list of voice
+  // note IDs it was generated from so the UI can flag staleness when new
+  // recordings land.
+  summary Json?
 
   notes     String?  @db.Text
   createdAt DateTime @default(now())
@@ -156,6 +172,7 @@ model Trade {
   voiceNotes VoiceNote[]
 
   @@index([userId, openedAt])
+  @@index([userId, status])
   @@index([projectId, openedAt])
 }
 
@@ -164,41 +181,56 @@ enum Direction {
   SHORT
 }
 
+// Lifecycle:
+//   TODO      → newborn; AI hasn't finished, OR required fields are still null.
+//   ANALYSED  → required fields all present (symbol + direction + entryPrice).
+//               Auto-promoted from TODO on any write that satisfies the rule.
+//   COMPLETED → user-locked; read-only; no more recordings accepted.
+//               Only reachable via explicit user action; never auto-reverted.
 enum TradeStatus {
-  OPEN
-  CLOSED
-  CANCELLED
+  TODO
+  ANALYSED
+  COMPLETED
 }
 
 // =============================================================================
-// VOICE NOTES — the heart of the product
+// VOICE NOTES — every recording belongs to exactly one Trade.
+// `tradeId` is REQUIRED: there are no orphan voice notes in the trade-centric
+// model. If no trade exists when an upload arrives, the upload route creates
+// one before inserting the VoiceNote row.
 // =============================================================================
 model VoiceNote {
   id     String @id @default(uuid())
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  projectId String? // null = freehand voice note
+  // Denormalised mirror of trade.projectId for fast project-scoped queries.
+  // MUST be kept in sync with trade.projectId on write.
+  projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  tradeId String?
-  trade   Trade?  @relation(fields: [tradeId], references: [id], onDelete: SetNull)
+  tradeId String
+  trade   Trade  @relation(fields: [tradeId], references: [id], onDelete: Cascade)
 
   audioPath       String? // local file path in dev
   audioDurationMs Int?
-  transcript      String  @db.Text
+  transcript      String  @db.Text // "" when AI never ran; payload then carries the error marker
 
-  screenshotPath String? // null when analysisMode = QUICK
+  screenshotPath String?      // null when analysisMode = QUICK
   analysisMode   AnalysisMode @default(QUICK)
 
-  payload        Json // BehavioralPayload (see PRD §6)
+  // BehavioralPayload (see PRD §6). When AI failed/skipped, this is a stub
+  // `{ error: "...", retryable: true }` so the row remains queryable.
+  payload        Json
   payloadVersion String @default("v1")
 
-  aiProvider String // "gemini-2.5-flash-lite", "gpt-4o-mini", etc.
-  aiTier     String // "cheap" | "balanced" | "premium" | "free"
+  aiProvider String? // null when AI didn't run (budget cap / provider error)
+  aiTier     String?
 
   context   NoteContext @default(POST_TRADE)
   createdAt DateTime    @default(now())
+
+  aiUsageLogs AiUsageLog[]
 
   @@index([userId, createdAt])
   @@index([projectId, createdAt])
@@ -223,7 +255,12 @@ enum AnalysisMode {
 model AiUsageLog {
   id            String   @id @default(uuid())
   userId        String?
-  provider      String // "gemini" | "openai" | "anthropic" | "ollama"
+  // Attribution to the specific recording the spend was incurred for. Null
+  // for non-note operations (e.g. project rule parsing, dev tooling) so the
+  // usage log remains a general-purpose ledger.
+  voiceNoteId   String?
+  voiceNote     VoiceNote? @relation(fields: [voiceNoteId], references: [id], onDelete: SetNull)
+  provider      String // "gemini" | "openai" | "anthropic" | "ollama" | "deepgram"
   model         String
   operation     String // "transcribe" | "analyze_quick" | "analyze_deep" | "parse_rules"
   inputTokens   Int?
@@ -234,4 +271,5 @@ model AiUsageLog {
 
   @@index([createdAt])
   @@index([userId, createdAt])
+  @@index([voiceNoteId])
 }

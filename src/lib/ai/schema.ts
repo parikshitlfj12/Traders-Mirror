@@ -118,3 +118,64 @@ export const BehavioralPayloadV1 = z.object({
 });
 
 export type BehavioralPayload = z.infer<typeof BehavioralPayloadV1>;
+
+// =============================================================================
+// TradeSummaryV1 — cross-recording synthesis stored on Trade.summary.
+// Generated on demand by /api/trades/[id]/summarize from all VoiceNotes on
+// the trade plus the trade's market fields. The basedOn arrays let the UI
+// flag "stale" if the trade has gained recordings or had fields changed
+// since the last generation, so the user knows when to regenerate.
+// =============================================================================
+
+export const TRADE_SUMMARY_VERSION = "v1" as const;
+
+const RR_NUMBER = z.number().finite();
+
+export const TradeSummaryV1 = z.object({
+  schema_version: z.literal("v1"),
+
+  // 2–3 sentence neutral story of what happened across all recordings.
+  // Same tone constraints as per_trade_feedback — observational, no "should".
+  narrative: z.string().min(20).max(800),
+
+  // Emotional/psychological patterns observed across recordings.
+  psychology: z.string().min(20).max(800),
+
+  // Entry/exit/sizing/timing observations — facts the AI can see in the
+  // transcripts + extracted fields, rendered as a short paragraph.
+  execution: z.string().min(20).max(600),
+
+  risk_reward: z.object({
+    // Numeric R-multiple if the AI can compute it confidently from
+    // entry/exit/stop or position size — null when the data isn't there.
+    computed: RR_NUMBER.nullable(),
+    // Short explanation of how the number was derived, OR (when null) why
+    // it couldn't be computed. Keeps the UI honest about confidence.
+    commentary: z.string().min(10).max(400),
+  }),
+
+  // 1–5 concise observations the user might want to remember.
+  key_learnings: z.array(z.string().min(5).max(200)).min(1).max(5),
+
+  // Provenance — what the summary was generated from. The UI flags as stale
+  // when the trade has voice notes whose IDs aren't in basedOnVoiceNoteIds.
+  basedOnVoiceNoteIds: z.array(z.string().uuid()).min(1),
+  generatedAt: z.string().datetime(),
+});
+
+export type TradeSummary = z.infer<typeof TradeSummaryV1>;
+
+/**
+ * The subset of TradeSummary the AI is responsible for producing. The route
+ * fills in `schema_version`, `basedOnVoiceNoteIds` and `generatedAt` after
+ * the AI returns, so the prompt + Structured Output stays focused on the
+ * narrative content and doesn't need to echo back IDs.
+ */
+export const TradeSummaryAiPayloadV1 = TradeSummaryV1.pick({
+  narrative: true,
+  psychology: true,
+  execution: true,
+  risk_reward: true,
+  key_learnings: true,
+});
+export type TradeSummaryAiPayload = z.infer<typeof TradeSummaryAiPayloadV1>;

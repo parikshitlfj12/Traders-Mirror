@@ -8,6 +8,7 @@ import {
   MicButton,
   type MicButtonState,
 } from "@/components/mic/MicButton";
+import { TradeAttachPicker } from "@/components/recorder/TradeAttachPicker";
 import { VoicePlayer } from "@/components/recorder/VoicePlayer";
 import { Button } from "@/components/ui/button";
 import { useRecorder, type Recording } from "@/hooks/useRecorder";
@@ -50,6 +51,12 @@ function pickExtension(mimeType: string): string {
 export function HomeRecorder() {
   const recorder = useRecorder();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  // Picker state — undefined = "+ New trade" (server creates a fresh TODO).
+  // Reset on every fresh recording so a stale selection from a previous
+  // recording can't accidentally attach a new note to the wrong trade.
+  const [attachTradeId, setAttachTradeId] = useState<string | undefined>(
+    undefined,
+  );
 
   // Mirror recorder errors into the UI phase machine
   useEffect(() => {
@@ -85,11 +92,14 @@ export function HomeRecorder() {
         setPhase({ kind: "idle" });
         return;
       }
+      // Reset picker on entering review so the default is always "+ New trade".
+      setAttachTradeId(undefined);
       setPhase({ kind: "review", recording: result });
     }
   }, [phase, recorder]);
 
   const onDiscard = useCallback(() => {
+    setAttachTradeId(undefined);
     setPhase({ kind: "idle" });
   }, []);
 
@@ -110,13 +120,20 @@ export function HomeRecorder() {
         String(Math.max(1, Math.round(recording.durationMs))),
       );
       formData.append("mimeType", recording.mimeType);
+      if (attachTradeId) formData.append("tradeId", attachTradeId);
 
       const response = await fetch("/api/voice-notes/upload", {
         method: "POST",
         body: formData,
       });
       const json: {
-        data: { voiceNoteId: string; audioPath: string } | null;
+        data: {
+          voiceNoteId: string;
+          tradeId: string;
+          tradeStatus: "TODO" | "ANALYSED" | "COMPLETED";
+          analysisDeferred?: boolean;
+          reason?: string;
+        } | null;
         error: { message: string; code?: string } | null;
       } = await response.json();
 
@@ -124,17 +141,31 @@ export function HomeRecorder() {
         throw new Error(json.error?.message ?? "Upload failed.");
       }
 
-      toast.success("Voice note saved.", {
-        description: `Stored at ${json.data.audioPath}. Real analysis lands once an AI key is wired up.`,
-        duration: 4500,
-      });
+      const wasAttached = Boolean(attachTradeId);
+      const verb = wasAttached ? "Recording attached" : "Trade created";
+      if (json.data.analysisDeferred) {
+        toast.warning(`${verb} — analysis deferred`, {
+          description:
+            "Daily AI budget reached. The trade is in TODO; retry analysis tomorrow.",
+          duration: 6000,
+        });
+      } else {
+        toast.success(`${verb}`, {
+          description:
+            json.data.tradeStatus === "ANALYSED"
+              ? "AI extracted the trade details — review them in Trades."
+              : "Saved in TODO. Add the missing fields in Trades.",
+          duration: 4500,
+        });
+      }
+      setAttachTradeId(undefined);
       setPhase({ kind: "idle" });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Upload failed.";
       toast.error("Couldn't save voice note", { description: message });
       setPhase({ kind: "review", recording });
     }
-  }, [phase]);
+  }, [phase, attachTradeId]);
 
   const micState: MicButtonState = (() => {
     if (phase.kind === "uploading") return "processing";
@@ -167,6 +198,10 @@ export function HomeRecorder() {
               src={phase.recording.objectUrl}
               durationMs={phase.recording.durationMs}
               className="w-full"
+            />
+            <TradeAttachPicker
+              value={attachTradeId}
+              onChange={setAttachTradeId}
             />
             <div className="flex w-full gap-2">
               <Button

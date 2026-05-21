@@ -1,9 +1,16 @@
-import { BehavioralPayloadV1, type BehavioralPayload } from "../schema";
+import {
+  BehavioralPayloadV1,
+  TradeSummaryAiPayloadV1,
+  type BehavioralPayload,
+  type TradeSummaryAiPayload,
+} from "../schema";
 import type {
   AIProvider,
   AnalysisResult,
   DeepAnalysisInput,
   QuickAnalysisInput,
+  SummarizeTradeInput,
+  SummarizeTradeResult,
   TranscribeInput,
   TranscriptionResult,
 } from "../types";
@@ -40,6 +47,18 @@ export class MockProvider implements AIProvider {
       provider: "mock",
       model: "mock-analyze-quick-v1",
       payload: buildMockPayload(input.transcript),
+      inputTokens: 0,
+      outputTokens: 0,
+      estimatedCostUsd: 0,
+    };
+  }
+
+  async summarizeTrade(input: SummarizeTradeInput): Promise<SummarizeTradeResult> {
+    await delay(700);
+    return {
+      provider: "mock",
+      model: "mock-summary-v1",
+      payload: buildMockSummary(input),
       inputTokens: 0,
       outputTokens: 0,
       estimatedCostUsd: 0,
@@ -157,4 +176,23 @@ const KEY_PHRASE_CANDIDATES = [
 function extractKeyPhrases(transcript: string): string[] {
   const lower = transcript.toLowerCase();
   return KEY_PHRASE_CANDIDATES.filter((p) => lower.includes(p)).slice(0, 5);
+}
+
+function buildMockSummary(input: SummarizeTradeInput): TradeSummaryAiPayload {
+  const symbol = input.trade.symbol ?? "the instrument";
+  const direction = input.trade.direction ?? "position";
+  const recordingCount = input.recordings.length;
+  return TradeSummaryAiPayloadV1.parse({
+    narrative: `Across ${recordingCount} recording${recordingCount === 1 ? "" : "s"}, the trader took a ${direction.toLowerCase()} position on ${symbol} and walked through their reasoning before and after entry.`,
+    psychology: `Mixed signals throughout — confidence wavered between the entry and exit windows, with a recurring tension between conviction and second-guessing.`,
+    execution: `Entry close to plan, size around half the usual allocation. Exit was discretionary rather than rule-based.`,
+    risk_reward: {
+      computed: null,
+      commentary: "Insufficient stop-loss data in transcripts to compute a numeric R-multiple.",
+    },
+    key_learnings: [
+      "Half-size entries kept emerging as a hedge against uncertainty.",
+      "Exit decisions were made on feel rather than predefined criteria.",
+    ],
+  });
 }

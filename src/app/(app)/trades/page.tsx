@@ -1,163 +1,249 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { Prisma } from "@prisma/client";
+import { Prisma, TradeStatus } from "@prisma/client";
 
 import {
-  TradeGroup,
-  type TradeGroupNote,
-  type TradeSummary,
-} from "@/components/trades/TradeGroup";
+  TradeStatusChips,
+  type TradeStatusFilter,
+} from "@/components/trades/TradeStatusChips";
+import { TradesView } from "@/components/trades/TradesView";
+import type {
+  TradeView,
+  TradeVoiceNoteView,
+} from "@/components/trades/types";
 import { buttonVariants } from "@/components/ui/button";
 import { requirePageUser } from "@/lib/auth";
+import { TradeSummaryV1 } from "@/lib/ai";
 import { prisma } from "@/lib/prisma";
+import { readFieldSources } from "@/lib/trades";
 
 export const metadata: Metadata = { title: "Trades" };
 
 // Auth + DB reads make this inherently per-request.
 export const dynamic = "force-dynamic";
 
-// Single source of truth for the shape we fetch. Reused by the grouping
-// helper so its argument type stays in sync with the query selection.
-const noteSelect = {
+// Single source of truth for the shape we fetch. Reused by the mapping helper
+// so its argument type stays in sync with the query selection.
+const tradeSelect = {
   id: true,
-  createdAt: true,
-  audioDurationMs: true,
-  analysisMode: true,
-  context: true,
-  aiProvider: true,
-  aiTier: true,
-  tradeId: true,
-  trade: {
+  status: true,
+  symbol: true,
+  market: true,
+  direction: true,
+  size: true,
+  entryPrice: true,
+  exitPrice: true,
+  pnl: true,
+  openedAt: true,
+  closedAt: true,
+  fieldSources: true,
+  summary: true,
+  project: { select: { id: true, name: true } },
+  voiceNotes: {
+    // Display order: newest recording on top so the trader sees their latest
+    // thought first. Downstream AI flows (summary generation, prior-context
+    // loader for analysis) do their own chronological queries — this order
+    // only affects the UI list.
+    orderBy: { createdAt: "desc" },
     select: {
       id: true,
-      symbol: true,
-      direction: true,
-      status: true,
-      openedAt: true,
-      closedAt: true,
-      pnl: true,
+      createdAt: true,
+      audioDurationMs: true,
+      analysisMode: true,
+      context: true,
+      aiProvider: true,
+      aiTier: true,
+      transcript: true,
+      aiUsageLogs: {
+        select: {
+          id: true,
+          operation: true,
+          provider: true,
+          model: true,
+          inputTokens: true,
+          outputTokens: true,
+          imageTokens: true,
+          estimatedCost: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   },
-  project: { select: { id: true, name: true } },
-} satisfies Prisma.VoiceNoteSelect;
+} satisfies Prisma.TradeSelect;
 
-type FetchedNote = Prisma.VoiceNoteGetPayload<{ select: typeof noteSelect }>;
+type FetchedTrade = Prisma.TradeGetPayload<{ select: typeof tradeSelect }>;
 
-interface RenderGroup {
-  readonly key: string;
-  readonly trade: TradeSummary | null;
-  readonly notes: TradeGroupNote[];
-  latestAt: Date;
+interface TradesPageProps {
+  readonly searchParams: { status?: string; id?: string };
 }
 
-export default async function TradesPage() {
+export default async function TradesPage({ searchParams }: TradesPageProps) {
   const user = await requirePageUser();
+  const filter = parseStatusFilter(searchParams.status);
 
-  const notes = await prisma.voiceNote.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    select: noteSelect,
-  });
+  // Two queries (one filtered list + one all-statuses groupBy for the chip
+  // counts) is cheaper than client-side filtering and keeps the page snappy
+  // as the trade list grows. Both stay scoped to the user.
+  const [trades, counts] = await Promise.all([
+    prisma.trade.findMany({
+      where: {
+        userId: user.id,
+        ...(filter === "ALL" ? {} : { status: filter }),
+      },
+      orderBy: [
+        // Status sorts ascending so the unfinished-work bucket appears first
+        // (it's alphabetically before ANALYSED and COMPLETED). Within each
+        // status, most recently opened on top.
+        { status: "asc" },
+        { openedAt: "desc" },
+      ],
+      select: tradeSelect,
+    }),
+    prisma.trade.groupBy({
+      by: ["status"],
+      where: { userId: user.id },
+      _count: { _all: true },
+    }),
+  ]);
 
-  const groups = groupByTrade(notes);
+  const chipCounts = buildCounts(counts);
+  const cards: TradeView[] = trades.map(toTradeView);
 
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 py-2">
-      <header>
-        <h1 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
-          Trades
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Your recordings, grouped under the trade they belong to. Manual trade
-          entry ships in Phase 3 — for now, fresh notes live under “Freehand”.
-        </p>
+    <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-5 py-2">
+      <header className="flex flex-col gap-3">
+        <div>
+          <h1 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
+            Trades
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Tap any trade to verify details, add another recording, or generate
+            a behavioural summary.
+          </p>
+        </div>
+        <TradeStatusChips active={filter} counts={chipCounts} />
       </header>
 
-      {groups.length === 0 ? (
-        <EmptyState />
+      {cards.length === 0 ? (
+        <EmptyState filter={filter} />
       ) : (
-        <div className="flex flex-col gap-4">
-          {groups.map((g) => (
-            <TradeGroup
-              key={g.key}
-              trade={g.trade}
-              notes={g.notes}
-              timezone={user.timezone}
-            />
-          ))}
-        </div>
+        <TradesView trades={cards} timezone={user.timezone} />
       )}
     </section>
   );
 }
 
 // -----------------------------------------------------------------------------
-// Grouping
+// Helpers
 // -----------------------------------------------------------------------------
 
-function groupByTrade(notes: ReadonlyArray<FetchedNote>): RenderGroup[] {
-  const byKey = new Map<string, RenderGroup>();
+const STATUS_FILTERS = new Set<TradeStatusFilter>([
+  "ALL",
+  TradeStatus.TODO,
+  TradeStatus.ANALYSED,
+  TradeStatus.COMPLETED,
+]);
 
-  for (const note of notes) {
-    const key = note.tradeId ?? "__freehand__";
+function parseStatusFilter(raw: string | undefined): TradeStatusFilter {
+  if (!raw) return "ALL";
+  const upper = raw.toUpperCase() as TradeStatusFilter;
+  return STATUS_FILTERS.has(upper) ? upper : "ALL";
+}
 
-    let group = byKey.get(key);
-    if (!group) {
-      group = {
-        key,
-        trade: note.trade
-          ? {
-              id: note.trade.id,
-              symbol: note.trade.symbol,
-              direction: note.trade.direction,
-              status: note.trade.status,
-              openedAt: note.trade.openedAt,
-              closedAt: note.trade.closedAt,
-              // Decimal → number for transport; safe for typical PnL magnitudes
-              // and avoids pushing a Prisma type into the client bundle.
-              pnl: note.trade.pnl == null ? null : Number(note.trade.pnl),
-            }
-          : null,
-        notes: [],
-        latestAt: note.createdAt,
-      };
-      byKey.set(key, group);
-    }
-
-    group.notes.push({
-      id: note.id,
-      createdAt: note.createdAt,
-      audioDurationMs: note.audioDurationMs,
-      analysisMode: note.analysisMode,
-      context: note.context,
-      project: note.project,
-      aiProvider: note.aiProvider,
-      aiTier: note.aiTier,
-    });
-
-    if (note.createdAt > group.latestAt) group.latestAt = note.createdAt;
+function buildCounts(
+  groups: Array<{ status: TradeStatus; _count: { _all: number } }>,
+): Record<TradeStatusFilter, number> {
+  const counts: Record<TradeStatusFilter, number> = {
+    ALL: 0,
+    TODO: 0,
+    ANALYSED: 0,
+    COMPLETED: 0,
+  };
+  for (const g of groups) {
+    counts[g.status] = g._count._all;
+    counts.ALL += g._count._all;
   }
+  return counts;
+}
 
-  // Most recently active group first — matches the "what just happened" mental
-  // model the user has when landing on this page.
-  return Array.from(byKey.values()).sort(
-    (a, b) => b.latestAt.getTime() - a.latestAt.getTime(),
-  );
+function toTradeView(t: FetchedTrade): TradeView {
+  const notes: TradeVoiceNoteView[] = t.voiceNotes.map((n) => {
+    const usage = n.aiUsageLogs.map((log) => ({
+      operation: log.operation,
+      provider: log.provider,
+      model: log.model,
+      inputTokens: log.inputTokens,
+      outputTokens: log.outputTokens,
+      imageTokens: log.imageTokens,
+      costUsd: Number(log.estimatedCost),
+    }));
+    const totalCostUsd = usage.reduce((sum, u) => sum + u.costUsd, 0);
+    return {
+      id: n.id,
+      createdAt: n.createdAt,
+      audioDurationMs: n.audioDurationMs,
+      analysisMode: n.analysisMode,
+      context: n.context,
+      aiProvider: n.aiProvider,
+      aiTier: n.aiTier,
+      transcript: n.transcript,
+      usage,
+      totalCostUsd,
+    };
+  });
+  const totalCostUsd = notes.reduce((s, n) => s + n.totalCostUsd, 0);
+
+  // Decimal → number for transport; safe for typical magnitudes and avoids
+  // pushing a Prisma type into the client bundle.
+  return {
+    id: t.id,
+    status: t.status,
+    symbol: t.symbol,
+    market: t.market,
+    direction: t.direction,
+    size: t.size == null ? null : Number(t.size),
+    entryPrice: t.entryPrice == null ? null : Number(t.entryPrice),
+    exitPrice: t.exitPrice == null ? null : Number(t.exitPrice),
+    pnl: t.pnl == null ? null : Number(t.pnl),
+    openedAt: t.openedAt,
+    closedAt: t.closedAt,
+    project: t.project,
+    fieldSources: readFieldSources(t.fieldSources),
+    notes,
+    totalCostUsd,
+    summary: safeParseSummary(t.summary),
+  };
+}
+
+// Defensive: drop summary silently if the persisted JSON ever drifts from
+// the current schema rather than crashing the whole /trades page.
+function safeParseSummary(raw: unknown) {
+  if (!raw) return null;
+  const parsed = TradeSummaryV1.safeParse(raw);
+  return parsed.success ? parsed.data : null;
 }
 
 // -----------------------------------------------------------------------------
 // Empty state
 // -----------------------------------------------------------------------------
 
-function EmptyState() {
+function EmptyState({ filter }: { readonly filter: TradeStatusFilter }) {
+  const isFiltered = filter !== "ALL";
   return (
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/30 px-6 py-10 text-center">
-      <h2 className="font-heading text-lg font-medium">No recordings yet</h2>
+      <h2 className="font-heading text-lg font-medium">
+        {isFiltered ? `No ${filter.toLowerCase()} trades` : "No trades yet"}
+      </h2>
       <p className="max-w-sm text-sm text-muted-foreground">
-        Record a voice note from the home screen and it’ll show up here, grouped
-        under its trade (or “Freehand” until trades land).
+        {isFiltered
+          ? "Switch filter or record a new voice note to populate this view."
+          : "Record a voice note from the home screen — it'll create your first trade automatically."}
       </p>
-      <Link href="/" className={buttonVariants({ size: "lg", className: "mt-2" })}>
+      <Link
+        href="/"
+        className={buttonVariants({ size: "lg", className: "mt-2" })}
+      >
         Record a note
       </Link>
     </div>
