@@ -30,6 +30,7 @@ import {
   buildVerifyFormKey,
   getCurrentVoiceNoteIds,
   hasAnalysableRecording,
+  shouldShowPnl,
   toFormInitial,
 } from "./helpers";
 import type {
@@ -151,7 +152,11 @@ function SheetHeaderBlock({
   readonly DirectionIcon: typeof ArrowDownIcon | typeof ArrowUpIcon | typeof MinusIcon;
 }) {
   const directionTone = getDirectionTone(trade.direction);
-  const pnlTone = getPnlTone(trade.pnl);
+  // Hide AI-inferred P&L when the underlying inputs (size/entry/exit) aren't
+  // all present — see shouldShowPnl for the rationale. User-entered values
+  // always pass.
+  const showPnl = shouldShowPnl(trade);
+  const pnlTone = showPnl ? getPnlTone(trade.pnl) : "text-muted-foreground";
 
   return (
     <header className="flex flex-col gap-2 border-b border-border bg-card/80 px-5 py-4 backdrop-blur supports-[backdrop-filter]:bg-card/60">
@@ -192,8 +197,26 @@ function SheetHeaderBlock({
           </SheetDescription>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
-          <span className={cn("font-mono text-sm tabular-nums", pnlTone)}>
-            {trade.pnl == null ? "PnL pending" : formatPnl(trade.pnl)}
+          <span
+            className={cn(
+              "flex items-center gap-1 font-mono text-sm tabular-nums",
+              pnlTone,
+            )}
+          >
+            {showPnl ? (
+              <>
+                {trade.pnl != null && trade.pnl !== 0 ? (
+                  trade.pnl > 0 ? (
+                    <ArrowUpIcon className="h-3.5 w-3.5" aria-hidden />
+                  ) : (
+                    <ArrowDownIcon className="h-3.5 w-3.5" aria-hidden />
+                  )
+                ) : null}
+                {formatPnl(trade.pnl as number)}
+              </>
+            ) : (
+              "PnL pending"
+            )}
           </span>
           <span className="text-[11px] text-muted-foreground">
             {formatRecordingCount(trade.notes.length)} ·{" "}

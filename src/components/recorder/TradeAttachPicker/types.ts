@@ -21,6 +21,13 @@ export interface TradeAttachPickerProps {
   /** `undefined` = "+ New trade" (server will create a fresh TODO). */
   readonly value: string | undefined;
   readonly onChange: (tradeId: string | undefined) => void;
+  /**
+   * When set, the dropdown only shows attachable trades for this project,
+   * and the "+ New trade" option is labelled "+ New trade in this project"
+   * so the user knows the scope is locked. Used by the project-detail
+   * recorder and the home recorder when a project is pre-selected.
+   */
+  readonly projectId?: string;
   readonly disabled?: boolean;
   readonly className?: string;
 }

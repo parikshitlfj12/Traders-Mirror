@@ -1,78 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Prisma, TradeStatus } from "@prisma/client";
+import { TradeStatus } from "@prisma/client";
 
 import {
   TradeStatusChips,
   type TradeStatusFilter,
 } from "@/components/trades/TradeStatusChips";
 import { TradesView } from "@/components/trades/TradesView";
-import type {
-  TradeView,
-  TradeVoiceNoteView,
-} from "@/components/trades/types";
+import type { TradeView } from "@/components/trades/types";
 import { buttonVariants } from "@/components/ui/button";
 import { requirePageUser } from "@/lib/auth";
-import { TradeSummaryV1 } from "@/lib/ai";
 import { prisma } from "@/lib/prisma";
-import { readFieldSources } from "@/lib/trades";
+import { toTradeView, tradeViewSelect } from "@/lib/trades-view";
 
 export const metadata: Metadata = { title: "Trades" };
 
 // Auth + DB reads make this inherently per-request.
 export const dynamic = "force-dynamic";
-
-// Single source of truth for the shape we fetch. Reused by the mapping helper
-// so its argument type stays in sync with the query selection.
-const tradeSelect = {
-  id: true,
-  status: true,
-  symbol: true,
-  market: true,
-  direction: true,
-  size: true,
-  entryPrice: true,
-  exitPrice: true,
-  pnl: true,
-  openedAt: true,
-  closedAt: true,
-  fieldSources: true,
-  summary: true,
-  project: { select: { id: true, name: true } },
-  voiceNotes: {
-    // Display order: newest recording on top so the trader sees their latest
-    // thought first. Downstream AI flows (summary generation, prior-context
-    // loader for analysis) do their own chronological queries — this order
-    // only affects the UI list.
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      createdAt: true,
-      audioDurationMs: true,
-      analysisMode: true,
-      context: true,
-      aiProvider: true,
-      aiTier: true,
-      transcript: true,
-      aiUsageLogs: {
-        select: {
-          id: true,
-          operation: true,
-          provider: true,
-          model: true,
-          inputTokens: true,
-          outputTokens: true,
-          imageTokens: true,
-          estimatedCost: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: "asc" },
-      },
-    },
-  },
-} satisfies Prisma.TradeSelect;
-
-type FetchedTrade = Prisma.TradeGetPayload<{ select: typeof tradeSelect }>;
 
 interface TradesPageProps {
   readonly searchParams: { status?: string; id?: string };
@@ -98,7 +42,7 @@ export default async function TradesPage({ searchParams }: TradesPageProps) {
         { status: "asc" },
         { openedAt: "desc" },
       ],
-      select: tradeSelect,
+      select: tradeViewSelect,
     }),
     prisma.trade.groupBy({
       by: ["status"],
@@ -165,63 +109,6 @@ function buildCounts(
     counts.ALL += g._count._all;
   }
   return counts;
-}
-
-function toTradeView(t: FetchedTrade): TradeView {
-  const notes: TradeVoiceNoteView[] = t.voiceNotes.map((n) => {
-    const usage = n.aiUsageLogs.map((log) => ({
-      operation: log.operation,
-      provider: log.provider,
-      model: log.model,
-      inputTokens: log.inputTokens,
-      outputTokens: log.outputTokens,
-      imageTokens: log.imageTokens,
-      costUsd: Number(log.estimatedCost),
-    }));
-    const totalCostUsd = usage.reduce((sum, u) => sum + u.costUsd, 0);
-    return {
-      id: n.id,
-      createdAt: n.createdAt,
-      audioDurationMs: n.audioDurationMs,
-      analysisMode: n.analysisMode,
-      context: n.context,
-      aiProvider: n.aiProvider,
-      aiTier: n.aiTier,
-      transcript: n.transcript,
-      usage,
-      totalCostUsd,
-    };
-  });
-  const totalCostUsd = notes.reduce((s, n) => s + n.totalCostUsd, 0);
-
-  // Decimal → number for transport; safe for typical magnitudes and avoids
-  // pushing a Prisma type into the client bundle.
-  return {
-    id: t.id,
-    status: t.status,
-    symbol: t.symbol,
-    market: t.market,
-    direction: t.direction,
-    size: t.size == null ? null : Number(t.size),
-    entryPrice: t.entryPrice == null ? null : Number(t.entryPrice),
-    exitPrice: t.exitPrice == null ? null : Number(t.exitPrice),
-    pnl: t.pnl == null ? null : Number(t.pnl),
-    openedAt: t.openedAt,
-    closedAt: t.closedAt,
-    project: t.project,
-    fieldSources: readFieldSources(t.fieldSources),
-    notes,
-    totalCostUsd,
-    summary: safeParseSummary(t.summary),
-  };
-}
-
-// Defensive: drop summary silently if the persisted JSON ever drifts from
-// the current schema rather than crashing the whole /trades page.
-function safeParseSummary(raw: unknown) {
-  if (!raw) return null;
-  const parsed = TradeSummaryV1.safeParse(raw);
-  return parsed.success ? parsed.data : null;
 }
 
 // -----------------------------------------------------------------------------

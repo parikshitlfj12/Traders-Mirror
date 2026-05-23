@@ -9,6 +9,78 @@ import { z } from "zod";
 
 export const PAYLOAD_SCHEMA_VERSION = "v1" as const;
 
+// -----------------------------------------------------------------------------
+// Rule taxonomy enums.
+//
+// Mirrors the Prisma `RuleCategory` and `Severity` enums verbatim. Hard-coded
+// here (rather than via `z.nativeEnum(RuleCategory)`) because OpenAI's
+// Structured Outputs needs the enum members to be inlinable into the JSON
+// schema it generates — `z.enum([...])` over string literals translates
+// cleanly; `nativeEnum` does not.
+//
+// If you add a value to schema.prisma's RuleCategory or Severity, mirror it
+// here in the same commit or the parser will reject rules of that type.
+// -----------------------------------------------------------------------------
+
+export const RuleCategoryEnum = z.enum([
+  "MAX_TRADES_PER_DAY",
+  "MAX_TRADES_PER_WEEK",
+  "MAX_DAILY_LOSS",
+  "MAX_WEEKLY_LOSS",
+  "MAX_RISK_PER_TRADE",
+  "POSITION_SIZE_CAP",
+  "NO_REVENGE_TRADING",
+  "NO_SIZE_INCREASE_AFTER_LOSS",
+  "APPROVED_SETUPS_ONLY",
+  "ALLOWED_SESSIONS_ONLY",
+  "NO_FOMO_ENTRIES",
+  "REQUIRES_CONFIRMATION",
+  "CUSTOM",
+]);
+export type RuleCategoryT = z.infer<typeof RuleCategoryEnum>;
+
+export const SeverityEnum = z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
+export type SeverityT = z.infer<typeof SeverityEnum>;
+
+// -----------------------------------------------------------------------------
+// ParsedRule — AI output shape for project rule parsing.
+//
+// `params` is intentionally a *closed* object with three optional slots:
+//   max  : the numeric threshold for caps (count / amount / percent)
+//   unit : how to read `max` — null for purely behavioural rules
+//   note : free-form text used by CUSTOM rules to capture the exact constraint
+// Structured Outputs strict mode forbids open-ended records, so this closed
+// shape is the price of getting deterministic JSON back. Rich per-category
+// params can land later as additive optional fields without breaking v1.
+// -----------------------------------------------------------------------------
+
+export const ParsedRuleParams = z.object({
+  max: z.number().finite().nullable(),
+  unit: z
+    .enum(["count", "usd", "pct", "lots", "other"])
+    .nullable(),
+  note: z.string().max(400).nullable(),
+});
+export type ParsedRuleParamsT = z.infer<typeof ParsedRuleParams>;
+
+export const ParsedRule = z.object({
+  category: RuleCategoryEnum,
+  description: z.string().min(3).max(280),
+  severity: SeverityEnum,
+  params: ParsedRuleParams,
+});
+export type ParsedRuleT = z.infer<typeof ParsedRule>;
+
+/**
+ * Wrapper object so the OpenAI Structured Output is a single named root.
+ * Caller pulls `.rules` out — keeps the prompt schema flat.
+ */
+export const ParsedRulesPayloadV1 = z.object({
+  schema_version: z.literal("v1"),
+  rules: z.array(ParsedRule).max(20),
+});
+export type ParsedRulesPayload = z.infer<typeof ParsedRulesPayloadV1>;
+
 export const EmotionEnum = z.enum([
   "calm",
   "confident",

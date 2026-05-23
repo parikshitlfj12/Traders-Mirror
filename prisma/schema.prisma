@@ -45,8 +45,10 @@ model Project {
 
   name     String
   startsAt DateTime
-  endsAt   DateTime
-  isActive Boolean  @default(true)
+  // Optional: open-ended campaigns (e.g. ongoing personal challenges) leave
+  // this null. Range-based queries fall back to "never expires" when null.
+  endsAt   DateTime?
+  isActive Boolean   @default(true)
 
   // Financial parameters — the "plan"
   startingCapital Decimal @db.Decimal(18, 2)

@@ -24,3 +24,13 @@ export interface UploadVoiceNoteResponse {
   } | null;
   error: { message: string; code?: string } | null;
 }
+
+export interface HomeRecorderProps {
+  /**
+   * When set, the project picker is hidden and every upload is bound to this
+   * project. Used by the project-detail recorder so the user can't pick a
+   * different project by mistake. Also filters the "Attach to trade" picker
+   * to trades inside this project.
+   */
+  readonly lockedProjectId?: string;
+}

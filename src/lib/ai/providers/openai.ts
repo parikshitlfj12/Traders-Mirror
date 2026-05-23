@@ -1,10 +1,16 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 
-import { BehavioralPayloadV1, TradeSummaryAiPayloadV1 } from "../schema";
+import {
+  BehavioralPayloadV1,
+  ParsedRulesPayloadV1,
+  TradeSummaryAiPayloadV1,
+} from "../schema";
 import type {
   AIProvider,
   AnalysisResult,
+  ParseRulesInput,
+  ParseRulesResult,
   QuickAnalysisInput,
   SummarizeTradeInput,
   SummarizeTradeResult,
@@ -110,6 +116,37 @@ export class OpenAIProvider implements AIProvider {
       provider: "openai",
       model: this.model,
       payload: response.output_parsed,
+      inputTokens,
+      outputTokens,
+      estimatedCostUsd: computeCostUsd(inputTokens, outputTokens),
+    };
+  }
+
+  async parseRules(input: ParseRulesInput): Promise<ParseRulesResult> {
+    const userPrompt = buildRulesPrompt(input);
+
+    const response = await this.client.responses.parse({
+      model: this.model,
+      input: [
+        { role: "system", content: SYSTEM_PROMPT_RULES_V1 },
+        { role: "user", content: userPrompt },
+      ],
+      text: {
+        format: zodTextFormat(ParsedRulesPayloadV1, "parsed_rules"),
+      },
+    });
+
+    if (!response.output_parsed) {
+      throw new Error("OpenAI returned no parsed rules");
+    }
+
+    const inputTokens = response.usage?.input_tokens ?? 0;
+    const outputTokens = response.usage?.output_tokens ?? 0;
+
+    return {
+      provider: "openai",
+      model: this.model,
+      rules: response.output_parsed.rules,
       inputTokens,
       outputTokens,
       estimatedCostUsd: computeCostUsd(inputTokens, outputTokens),
@@ -273,4 +310,62 @@ function buildSummaryPrompt(input: SummarizeTradeInput): string {
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
   return s.slice(0, max - 1) + "…";
+}
+
+// -----------------------------------------------------------------------------
+// Rule parsing prompt — converts the trader's natural-language rules block
+// into structured Rule rows (PRD §9.2 POST /api/projects → AI rule parser).
+//
+// We list every RuleCategory + Severity verbatim so the model can't pick a
+// value outside the Prisma enum. The `params` shape is closed (max / unit /
+// note) — see lib/ai/schema.ts ParsedRule for the rationale.
+// -----------------------------------------------------------------------------
+
+const SYSTEM_PROMPT_RULES_V1 = `You convert a trader's natural-language project rules into structured rule rows. The trader will review and edit your output, so be precise rather than creative.
+
+CATEGORIES (pick exactly one per rule):
+- MAX_TRADES_PER_DAY / MAX_TRADES_PER_WEEK    — trade count caps
+- MAX_DAILY_LOSS / MAX_WEEKLY_LOSS            — money loss caps in account currency
+- MAX_RISK_PER_TRADE                          — risk cap per trade (usually % of account)
+- POSITION_SIZE_CAP                           — max lot/contract size per trade
+- NO_REVENGE_TRADING                          — no doubling down after a loss
+- NO_SIZE_INCREASE_AFTER_LOSS                 — keep size constant after a losing trade
+- APPROVED_SETUPS_ONLY                        — only take pre-defined setups
+- ALLOWED_SESSIONS_ONLY                       — only trade during specific sessions
+- NO_FOMO_ENTRIES                             — no entries because you "missed the move"
+- REQUIRES_CONFIRMATION                       — wait for confirmation before entry
+- CUSTOM                                      — use ONLY when nothing above fits
+
+SEVERITY:
+- LOW       — preference / nice-to-have
+- MEDIUM    — usual discipline rule (default if unclear)
+- HIGH      — capital protection
+- CRITICAL  — hard stop / fund-rules-style account-killer
+
+PARAMS shape (one object per rule):
+  max:  number or null — the numeric threshold for caps. Null for behavioural rules.
+  unit: one of "count" | "usd" | "pct" | "lots" | "other", or null.
+        Use "count" for trade counts, "usd" for money, "pct" for percentage,
+        "lots" for position size, "other" if numeric but doesn't fit.
+  note: string or null — short free-form text. REQUIRED for CUSTOM rules to
+        record the exact constraint. Optional for others.
+
+RULES:
+1. Return ONLY JSON matching the schema.
+2. Split compound rules into one row each. "No FOMO and no revenge trading" → two rows.
+3. \`description\` should be one short sentence in the trader's own voice (≤ 280 chars). They should recognise their own rule.
+4. Never invent rules the trader didn't state. If no rules are parseable from the text, return an empty \`rules\` array.
+5. Pick CUSTOM as a last resort; prefer a specific category whenever the meaning fits.
+6. \`schema_version\` is always "v1".`;
+
+function buildRulesPrompt(input: ParseRulesInput): string {
+  return [
+    `TRADER CONTEXT`,
+    `Primary market: ${input.primaryMarket}`,
+    ``,
+    `RULES BLOCK (verbatim)`,
+    `"""`,
+    input.rawText,
+    `"""`,
+  ].join("\n");
 }

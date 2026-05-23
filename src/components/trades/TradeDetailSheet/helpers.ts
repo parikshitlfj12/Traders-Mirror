@@ -5,6 +5,11 @@ import type { TradeFormValues } from "@/components/trades/TradeVerifyForm";
 // Local pure helpers for the trade detail sheet.
 // =============================================================================
 
+// Re-export the shared "is P&L meaningful?" gate so existing imports from
+// this module keep working. The real implementation lives in
+// components/trades/helpers.ts and is shared with TradeListRow.
+export { shouldShowPnl } from "@/components/trades/helpers";
+
 /** Project the persisted TradeView into the shape the verify form expects. */
 export function toFormInitial(trade: TradeView): TradeFormValues {
   return {

@@ -1,13 +1,17 @@
 import {
   BehavioralPayloadV1,
+  ParsedRulesPayloadV1,
   TradeSummaryAiPayloadV1,
   type BehavioralPayload,
+  type ParsedRuleT,
   type TradeSummaryAiPayload,
 } from "../schema";
 import type {
   AIProvider,
   AnalysisResult,
   DeepAnalysisInput,
+  ParseRulesInput,
+  ParseRulesResult,
   QuickAnalysisInput,
   SummarizeTradeInput,
   SummarizeTradeResult,
@@ -59,6 +63,18 @@ export class MockProvider implements AIProvider {
       provider: "mock",
       model: "mock-summary-v1",
       payload: buildMockSummary(input),
+      inputTokens: 0,
+      outputTokens: 0,
+      estimatedCostUsd: 0,
+    };
+  }
+
+  async parseRules(input: ParseRulesInput): Promise<ParseRulesResult> {
+    await delay(500);
+    return {
+      provider: "mock",
+      model: "mock-parse-rules-v1",
+      rules: buildMockParsedRules(input.rawText),
       inputTokens: 0,
       outputTokens: 0,
       estimatedCostUsd: 0,
@@ -176,6 +192,109 @@ const KEY_PHRASE_CANDIDATES = [
 function extractKeyPhrases(transcript: string): string[] {
   const lower = transcript.toLowerCase();
   return KEY_PHRASE_CANDIDATES.filter((p) => lower.includes(p)).slice(0, 5);
+}
+
+// -----------------------------------------------------------------------------
+// Mock rule parser — keyword scan over the rawText. Deterministic enough to
+// dogfood the rules UI without any external calls. Real parsing lives in the
+// OpenAI provider; this is purely to keep dev-without-keys functional.
+// -----------------------------------------------------------------------------
+
+const MOCK_RULE_KEYWORDS: ReadonlyArray<{
+  match: RegExp;
+  build: (raw: string) => ParsedRuleT;
+}> = [
+  {
+    match: /fomo|missed (the )?move/i,
+    build: (raw) => ({
+      category: "NO_FOMO_ENTRIES",
+      description: extractMatchingSentence(raw, /fomo|missed/i) ?? "No FOMO entries.",
+      severity: "HIGH",
+      params: { max: null, unit: null, note: null },
+    }),
+  },
+  {
+    match: /revenge/i,
+    build: (raw) => ({
+      category: "NO_REVENGE_TRADING",
+      description:
+        extractMatchingSentence(raw, /revenge/i) ?? "No revenge trading.",
+      severity: "HIGH",
+      params: { max: null, unit: null, note: null },
+    }),
+  },
+  {
+    match: /(\d+)\s*trades?\s*(per|a)\s*day/i,
+    build: (raw) => {
+      const match = /(\d+)\s*trades?\s*(per|a)\s*day/i.exec(raw);
+      const max = match ? Number(match[1]) : null;
+      return {
+        category: "MAX_TRADES_PER_DAY",
+        description:
+          extractMatchingSentence(raw, /trades?\s+(per|a)\s+day/i) ??
+          `Max ${max ?? "N"} trades per day.`,
+        severity: "MEDIUM",
+        params: { max, unit: "count", note: null },
+      };
+    },
+  },
+  {
+    match: /(\d+(?:\.\d+)?)\s*%\s*(per trade|risk)/i,
+    build: (raw) => {
+      const match = /(\d+(?:\.\d+)?)\s*%/i.exec(raw);
+      const max = match ? Number(match[1]) : null;
+      return {
+        category: "MAX_RISK_PER_TRADE",
+        description:
+          extractMatchingSentence(raw, /%.*trade|risk.*\d/i) ??
+          `Risk no more than ${max ?? "N"}% per trade.`,
+        severity: "HIGH",
+        params: { max, unit: "pct", note: null },
+      };
+    },
+  },
+  {
+    match: /stop after (two|three|\d+) (loss|losses)/i,
+    build: (raw) => {
+      const match = /stop after (two|three|\d+) (loss|losses)/i.exec(raw);
+      const wordToNum: Record<string, number> = { two: 2, three: 3 };
+      const max =
+        match && match[1] ? (wordToNum[match[1].toLowerCase()] ?? Number(match[1])) : null;
+      return {
+        category: "MAX_DAILY_LOSS",
+        description:
+          extractMatchingSentence(raw, /stop after.*loss/i) ??
+          `Stop trading after ${max ?? "N"} consecutive losses.`,
+        severity: "CRITICAL",
+        params: { max, unit: "count", note: "consecutive losses" },
+      };
+    },
+  },
+];
+
+function buildMockParsedRules(rawText: string): ParsedRuleT[] {
+  if (!rawText.trim()) return [];
+  const matched: ParsedRuleT[] = [];
+  for (const kw of MOCK_RULE_KEYWORDS) {
+    if (kw.match.test(rawText)) matched.push(kw.build(rawText));
+  }
+  // Re-run through the real schema so the mock can't drift from the contract.
+  return ParsedRulesPayloadV1.parse({
+    schema_version: "v1",
+    rules: matched,
+  }).rules;
+}
+
+function extractMatchingSentence(text: string, pattern: RegExp): string | null {
+  // Trader rules tend to be bullet lines — split on newline first, then
+  // sentence-terminating punctuation as a fallback.
+  const candidates = text
+    .split(/\n+/)
+    .flatMap((line) => line.split(/(?<=[.!?])\s+/));
+  for (const c of candidates) {
+    if (pattern.test(c)) return c.trim().slice(0, 280);
+  }
+  return null;
 }
 
 function buildMockSummary(input: SummarizeTradeInput): TradeSummaryAiPayload {

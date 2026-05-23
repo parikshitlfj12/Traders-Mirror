@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRightIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
 
 import {
   TRADE_STATUS_LABEL,
@@ -11,6 +11,7 @@ import {
   getDirectionIcon,
   getDirectionTone,
   getPnlTone,
+  shouldShowPnl,
 } from "@/components/trades/helpers";
 import { formatDateCompact, formatPnl } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -35,7 +36,8 @@ export function TradeListRow({
 }: TradeListRowProps) {
   const DirectionIcon = getDirectionIcon(trade.direction);
   const directionTone = getDirectionTone(trade.direction);
-  const pnlTone = getPnlTone(trade.pnl);
+  const showPnl = shouldShowPnl(trade);
+  const pnlTone = showPnl ? getPnlTone(trade.pnl) : "text-muted-foreground";
 
   return (
     <button
@@ -84,8 +86,20 @@ export function TradeListRow({
       </div>
 
       <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
-        <span className={cn("font-mono text-sm tabular-nums", pnlTone)}>
-          {trade.pnl == null ? "—" : formatPnl(trade.pnl)}
+        <span
+          className={cn(
+            "flex items-center gap-0.5 font-mono text-sm tabular-nums",
+            pnlTone,
+          )}
+        >
+          {showPnl && trade.pnl != null && trade.pnl !== 0 ? (
+            trade.pnl > 0 ? (
+              <ArrowUpIcon className="h-3 w-3" aria-hidden />
+            ) : (
+              <ArrowDownIcon className="h-3 w-3" aria-hidden />
+            )
+          ) : null}
+          {showPnl ? formatPnl(trade.pnl as number) : "—"}
         </span>
         <span className="text-[10px] text-muted-foreground">
           {formatRowSpend(trade.totalCostUsd)}

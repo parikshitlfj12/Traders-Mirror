@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -9,6 +10,7 @@ import {
   buildUploadFormData,
   deriveMicState,
 } from "@/components/recorder/helpers";
+import { ProjectAttachPicker } from "@/components/recorder/ProjectAttachPicker";
 import { TradeAttachPicker } from "@/components/recorder/TradeAttachPicker";
 import { VoicePlayer } from "@/components/recorder/VoicePlayer";
 import { Button } from "@/components/ui/button";
@@ -21,20 +23,27 @@ import {
 } from "./helpers";
 import type {
   HomeRecorderPhase,
+  HomeRecorderProps,
   UploadVoiceNoteResponse,
 } from "./types";
 
 // =============================================================================
 // HomeRecorder — orchestrates the mic, recording, review and upload on the
-// homepage. The "Attach to" picker chooses between starting a fresh trade
-// or refining an existing one; the rest of the flow mirrors what
-// TradeInlineRecorder does inside the trade detail sheet, sharing the same
-// recorder helpers (deriveMicState, buildUploadFormData) so the two stay
-// behaviourally identical.
+// homepage AND inside a project (via `lockedProjectId`). The "Attach to"
+// picker chooses between starting a fresh trade or refining an existing one;
+// the rest of the flow mirrors what TradeInlineRecorder does inside the
+// trade detail sheet, sharing the same recorder helpers (deriveMicState,
+// buildUploadFormData) so the two stay behaviourally identical.
+//
+// After a successful upload we router-push to the freshly-created trade in
+// its natural surface — `/trades?id=…` for freehand, `/projects/<projectId>?id=…`
+// when the trade lives inside a project — so the user lands directly on
+// the detail sheet to verify fields without an extra tap.
 // =============================================================================
 
-export function HomeRecorder() {
+export function HomeRecorder({ lockedProjectId }: HomeRecorderProps = {}) {
   const recorder = useRecorder();
+  const router = useRouter();
   const [phase, setPhase] = useState<HomeRecorderPhase>({ kind: "idle" });
   // Picker state — undefined = "+ New trade" (server creates a fresh TODO).
   // Reset on every fresh recording so a stale selection from a previous
@@ -42,6 +51,15 @@ export function HomeRecorder() {
   const [attachTradeId, setAttachTradeId] = useState<string | undefined>(
     undefined,
   );
+  // Only relevant when attachTradeId is undefined (creating a new trade).
+  // When attaching to an existing trade we hide the picker — that trade's
+  // project is already determined and another picker here would mislead.
+  // When lockedProjectId is supplied, the picker is hidden entirely and we
+  // pass that value through on every upload.
+  const [attachProjectId, setAttachProjectId] = useState<string | undefined>(
+    undefined,
+  );
+  const effectiveProjectId = lockedProjectId ?? attachProjectId;
 
   useEffect(() => {
     if (recorder.state === "error" && recorder.errorMessage) {
@@ -72,26 +90,39 @@ export function HomeRecorder() {
         setPhase({ kind: "idle" });
         return;
       }
-      // Reset picker on entering review so the default is always "+ New trade".
+      // Reset pickers on entering review so the defaults are always
+      // "+ New trade" + (when not locked) "No project".
       setAttachTradeId(undefined);
+      if (!lockedProjectId) setAttachProjectId(undefined);
       setPhase({ kind: "review", recording: result });
     }
-  }, [phase, recorder]);
+  }, [phase, recorder, lockedProjectId]);
 
   const onDiscard = useCallback(() => {
     setAttachTradeId(undefined);
+    if (!lockedProjectId) setAttachProjectId(undefined);
     setPhase({ kind: "idle" });
-  }, []);
+  }, [lockedProjectId]);
 
   const onSubmit = useCallback(async () => {
     if (phase.kind !== "review") return;
     const recording = phase.recording;
     setPhase({ kind: "uploading", recording });
 
+    // Snapshot the project the user is attaching to BEFORE we reset state on
+    // success. The post-upload redirect needs this even after the picker
+    // values have been cleared.
+    const projectForUpload = attachTradeId ? undefined : effectiveProjectId;
+
     try {
       const response = await fetch("/api/voice-notes/upload", {
         method: "POST",
-        body: buildUploadFormData(recording, { tradeId: attachTradeId }),
+        body: buildUploadFormData(recording, {
+          tradeId: attachTradeId,
+          // Only honoured by the server when creating a new trade — sending
+          // it alongside tradeId is a no-op, but we skip it for clarity.
+          projectId: projectForUpload,
+        }),
       });
       const json: UploadVoiceNoteResponse = await response.json();
 
@@ -113,13 +144,24 @@ export function HomeRecorder() {
         });
       }
       setAttachTradeId(undefined);
+      setAttachProjectId(undefined);
       setPhase({ kind: "idle" });
+
+      // Land the user on the trade detail sheet for the freshly-uploaded
+      // recording. Project-scoped trades open inside the project page so
+      // they keep their context; freehand trades open on /trades.
+      const tradeId = json.data.tradeId;
+      const destination = projectForUpload
+        ? `/projects/${projectForUpload}?id=${tradeId}`
+        : `/trades?id=${tradeId}`;
+      router.push(destination);
+      router.refresh();
     } catch (e) {
       const message = e instanceof Error ? e.message : "Upload failed.";
       toast.error("Couldn't save voice note", { description: message });
       setPhase({ kind: "review", recording });
     }
-  }, [phase, attachTradeId]);
+  }, [phase, attachTradeId, effectiveProjectId, router]);
 
   const micState = deriveMicState(phase, recorder.state);
 
@@ -146,9 +188,26 @@ export function HomeRecorder() {
               durationMs={phase.recording.durationMs}
               className="w-full"
             />
+            {/* Pickers, ordered project → trade so the trade list narrows
+                to "this project" as soon as a project is chosen. When a
+                project is locked from the parent surface (e.g. recording
+                inside /projects/[id]), the project picker is hidden. */}
+            {lockedProjectId == null && (
+              <ProjectAttachPicker
+                value={attachProjectId}
+                onChange={(next) => {
+                  setAttachProjectId(next);
+                  // Reset trade selection when the project changes so we
+                  // never carry a trade-id over that belonged to the
+                  // previously-selected project.
+                  setAttachTradeId(undefined);
+                }}
+              />
+            )}
             <TradeAttachPicker
               value={attachTradeId}
               onChange={setAttachTradeId}
+              projectId={effectiveProjectId}
             />
             <div className="flex w-full gap-2">
               <Button

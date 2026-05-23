@@ -1,6 +1,8 @@
 import type { Direction } from "@prisma/client";
 import { ArrowDownIcon, ArrowUpIcon, MinusIcon, type LucideIcon } from "lucide-react";
 
+import type { TradeView } from "./types";
+
 // =============================================================================
 // Pure presentation helpers shared by every component that visualises a
 // Trade's direction or PnL — i.e. the list row, the sheet header, and any
@@ -31,4 +33,28 @@ export function getPnlTone(pnl: number | null): string {
  */
 export function formatRecordingCount(count: number): string {
   return count === 1 ? "1 recording" : `${count} recordings`;
+}
+
+/**
+ * Is the trade's P&L safe to surface as a hard number?
+ *
+ * The AI sometimes infers `pnl` from a transcript snippet even when the
+ * underlying position size is unknown — which produces a meaningless number
+ * the user can't reconcile against their broker. Rule:
+ *
+ *   - User-entered P&L always shows. The trader entered it deliberately.
+ *   - AI-inferred P&L shows only when `size`, `entryPrice` AND `exitPrice`
+ *     are also present — the three inputs needed to verify the math.
+ *
+ * Used by both TradeListRow and TradeDetailSheet so the value either shows
+ * everywhere or nowhere — no surface drift.
+ */
+export function shouldShowPnl(trade: TradeView): boolean {
+  if (trade.pnl == null) return false;
+  if (trade.fieldSources.pnl?.source === "user") return true;
+  return (
+    trade.size != null &&
+    trade.entryPrice != null &&
+    trade.exitPrice != null
+  );
 }

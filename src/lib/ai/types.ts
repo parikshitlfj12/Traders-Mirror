@@ -1,4 +1,8 @@
-import type { BehavioralPayload, TradeSummaryAiPayload } from "./schema";
+import type {
+  BehavioralPayload,
+  ParsedRuleT,
+  TradeSummaryAiPayload,
+} from "./schema";
 
 // =============================================================================
 // AI provider abstraction — PRD §7.
@@ -131,6 +135,23 @@ export interface SummarizeTradeResult extends ProviderInvocation {
   payload: TradeSummaryAiPayload;
 }
 
+// -----------------------------------------------------------------------------
+// Rule parsing — turns a trader's free-text rules block into structured
+// Rule rows. Called once at project-create time (and on-demand from the
+// rule editor) so the prompt cost is paid up-front, not on every recording.
+// -----------------------------------------------------------------------------
+
+export interface ParseRulesInput {
+  userId: string;
+  rawText: string;
+  primaryMarket: "FOREX" | "CRYPTO" | "BOTH";
+}
+
+export interface ParseRulesResult extends ProviderInvocation {
+  /** Structured rules ready to be persisted (subject to user confirmation). */
+  rules: ReadonlyArray<ParsedRuleT>;
+}
+
 export interface AIProvider {
   readonly name: AIProviderName;
   readonly tier: AITier;
@@ -141,4 +162,6 @@ export interface AIProvider {
   analyzeDeep?(input: DeepAnalysisInput): Promise<AnalysisResult>;
   /** Optional — cross-recording summary. Composite delegates to the analyzer. */
   summarizeTrade?(input: SummarizeTradeInput): Promise<SummarizeTradeResult>;
+  /** Optional — natural-language → structured Rule rows. */
+  parseRules?(input: ParseRulesInput): Promise<ParseRulesResult>;
 }

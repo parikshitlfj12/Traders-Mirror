@@ -3,6 +3,8 @@ import type {
   AITier,
   AnalysisResult,
   DeepAnalysisInput,
+  ParseRulesInput,
+  ParseRulesResult,
   QuickAnalysisInput,
   SummarizeTradeInput,
   SummarizeTradeResult,
@@ -67,5 +69,14 @@ export class CompositeProvider implements AIProvider {
       );
     }
     return this.analyzer.summarizeTrade(input);
+  }
+
+  parseRules(input: ParseRulesInput): Promise<ParseRulesResult> {
+    if (!this.analyzer.parseRules) {
+      throw new Error(
+        `CompositeProvider: analyzer ${this.analyzer.name} has no parseRules`,
+      );
+    }
+    return this.analyzer.parseRules(input);
   }
 }

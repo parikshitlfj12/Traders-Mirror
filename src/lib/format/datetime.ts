@@ -52,3 +52,26 @@ export function formatDateCompact(input: DateInput, timezone: string): string {
     minute: "2-digit",
   });
 }
+
+/**
+ * Day-only "21 May 2026" — used for project date ranges + calendar pickers
+ * where the time component would just be visual noise.
+ */
+export function formatDate(input: DateInput, timezone: string): string {
+  return safeFormat(input, {
+    timeZone: timezone,
+    dateStyle: "medium",
+  });
+}
+
+/**
+ * Day-only "21 May" without the year — for very dense surfaces (e.g. the
+ * project list card) where the date range is implicit to the current year.
+ */
+export function formatDateShort(input: DateInput, timezone: string): string {
+  return safeFormat(input, {
+    timeZone: timezone,
+    day: "numeric",
+    month: "short",
+  });
+}

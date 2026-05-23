@@ -5,9 +5,11 @@ import {
   BehavioralPayloadV1,
   getAIProvider,
   type PriorTradeContext,
+  type ProjectContextForAnalysis,
 } from "@/lib/ai";
 import { checkBudget, logAIUsage, type LogAIUsageInput } from "@/lib/budget";
 import { prisma } from "@/lib/prisma";
+import { activeRulesForProject, type RuleView } from "@/lib/rules";
 import { regenerateTradeSummarySafe } from "@/lib/trade-summary";
 import {
   computeStatus,
@@ -15,6 +17,7 @@ import {
   resolveOrCreateTrade,
 } from "@/lib/trades";
 import { UploadVoiceNoteFormSchema } from "@/lib/validation/voiceNotes";
+import { detectRuleViolations } from "@/lib/violations";
 
 // How many prior recordings to feed back to the analyser when this is an
 // N>1 recording on a trade. Capped to keep the prompt bounded — see
@@ -159,11 +162,18 @@ export const POST = handle(async (req: Request) => {
     // path the user pitched. Skipped silently for fresh trades.
     const priorContext = await loadPriorContextIfAny(trade.id);
 
+    // Build the project-context block iff the trade lives in a project.
+    // Bundles the rule list so the analyser can spot violations in-prompt;
+    // we still re-check the resulting payload against active rules below
+    // via detectRuleViolations as defence in depth.
+    const projectBundle = await loadProjectContextIfAny(trade.projectId);
+
     const analysis = await provider.analyzeQuick({
       transcript: transcription.transcript,
       userId: user.id,
       primaryMarket: user.primaryMarket,
       priorContext,
+      projectContext: projectBundle?.context,
     });
     // Defence in depth: re-validate provider output before persisting it. A
     // real provider could drift; we never want a malformed payload in the DB.
@@ -178,52 +188,81 @@ export const POST = handle(async (req: Request) => {
       estimatedCostUsd: analysis.estimatedCostUsd,
     });
 
-    // Single transaction: VoiceNote insert + Trade merge + status recompute.
-    // If either step fails the rollback prevents a half-applied extraction.
-    const { voiceNoteId, nextStatus } = await prisma.$transaction(async (tx) => {
-      const voiceNote = await tx.voiceNote.create({
-        data: {
-          userId: user.id,
-          projectId: trade.projectId,
-          tradeId: trade.id,
-          audioPath: saved.relativePath,
-          audioDurationMs: meta.durationMs,
-          transcript: transcription.transcript,
-          analysisMode: "QUICK",
-          payload,
-          payloadVersion: "v1",
-          aiProvider: `${analysis.provider}:${analysis.model}`,
-          aiTier: provider.tier,
-          context: "POST_TRADE",
-        },
-        select: { id: true },
-      });
+    // Single transaction: VoiceNote insert + Trade merge + status recompute
+    // + RuleViolation rows (if the trade lives in a project). Wrapping the
+    // whole thing means a violation insert failure rolls back the voice note
+    // — preferable to a half-applied state where the recording exists but
+    // the violations didn't land.
+    const { voiceNoteId, nextStatus, violationCount } = await prisma.$transaction(
+      async (tx) => {
+        const voiceNote = await tx.voiceNote.create({
+          data: {
+            userId: user.id,
+            projectId: trade.projectId,
+            tradeId: trade.id,
+            audioPath: saved.relativePath,
+            audioDurationMs: meta.durationMs,
+            transcript: transcription.transcript,
+            analysisMode: "QUICK",
+            payload,
+            payloadVersion: "v1",
+            aiProvider: `${analysis.provider}:${analysis.model}`,
+            aiTier: provider.tier,
+            context: "POST_TRADE",
+          },
+          select: { id: true },
+        });
 
-      const merge = mergeExtractedTradeIntoTrade(
-        trade,
-        payload.extracted_trade,
-        voiceNote.id,
-      );
+        const merge = mergeExtractedTradeIntoTrade(
+          trade,
+          payload.extracted_trade,
+          voiceNote.id,
+        );
 
-      // Status recompute uses post-merge field values so a newly-extracted
-      // symbol/direction/entryPrice promotes TODO → ANALYSED in the same write.
-      const updateData = { ...merge.data };
-      const promoted = computeStatus(trade.status, {
-        symbol: (merge.data.symbol as string | undefined) ?? trade.symbol,
-        direction:
-          (merge.data.direction as typeof trade.direction | undefined) ??
-          trade.direction,
-        entryPrice:
-          (merge.data.entryPrice as number | undefined) ?? trade.entryPrice,
-      });
-      if (promoted !== trade.status) updateData.status = promoted;
+        // Status recompute uses post-merge field values so a newly-extracted
+        // symbol/direction/entryPrice promotes TODO → ANALYSED in the same write.
+        const updateData = { ...merge.data };
+        const promoted = computeStatus(trade.status, {
+          symbol: (merge.data.symbol as string | undefined) ?? trade.symbol,
+          direction:
+            (merge.data.direction as typeof trade.direction | undefined) ??
+            trade.direction,
+          entryPrice:
+            (merge.data.entryPrice as number | undefined) ?? trade.entryPrice,
+        });
+        if (promoted !== trade.status) updateData.status = promoted;
 
-      if (Object.keys(updateData).length > 0) {
-        await tx.trade.update({ where: { id: trade.id }, data: updateData });
-      }
+        if (Object.keys(updateData).length > 0) {
+          await tx.trade.update({ where: { id: trade.id }, data: updateData });
+        }
 
-      return { voiceNoteId: voiceNote.id, nextStatus: promoted };
-    });
+        // Map the AI payload's flags + suggested_violations against the
+        // project's active rules. Skipped (and zero) for freehand trades.
+        let violationCount = 0;
+        if (projectBundle && projectBundle.rules.length > 0) {
+          const candidates = detectRuleViolations(payload, projectBundle.rules);
+          if (candidates.length > 0) {
+            await tx.ruleViolation.createMany({
+              data: candidates.map((c) => ({
+                ruleId: c.ruleId,
+                projectId: trade.projectId!,
+                voiceNoteId: voiceNote.id,
+                tradeId: trade.id,
+                detectedBy: c.detectedBy,
+                evidence: c.evidence,
+              })),
+            });
+            violationCount = candidates.length;
+          }
+        }
+
+        return {
+          voiceNoteId: voiceNote.id,
+          nextStatus: promoted,
+          violationCount,
+        };
+      },
+    );
     cleanupOnError = false;
 
     // Backfill voiceNoteId onto each pending entry, then bulk-write. If this
@@ -256,6 +295,9 @@ export const POST = handle(async (req: Request) => {
       durationMs: meta.durationMs,
       transcript: transcription.transcript,
       payload,
+      // 0 means the trade is freehand OR no rules matched. UI uses this to
+      // surface a "1 rule violation flagged" toast without an extra round-trip.
+      violationCount,
       summaryRegenerated: summaryResult.kind === "ok",
       summarySkipReason:
         summaryResult.kind === "skipped" ? summaryResult.reason : undefined,
@@ -320,6 +362,51 @@ async function loadPriorContextIfAny(
         createdAt: r.createdAt.toISOString(),
         transcript: r.transcript,
       })),
+  };
+}
+
+/**
+ * Build the project-context block for `analyzeQuick` AND the active rule set
+ * the violations engine matches against. Returned together so the upload
+ * route only does one round-trip — the rule list is reused for both.
+ *
+ * Returns undefined for freehand trades (no projectId) or when the project
+ * has zero active rules (no point in seeding the prompt with an empty list).
+ */
+interface ProjectContextBundle {
+  context: ProjectContextForAnalysis;
+  rules: ReadonlyArray<RuleView>;
+}
+
+async function loadProjectContextIfAny(
+  projectId: string | null,
+): Promise<ProjectContextBundle | undefined> {
+  if (!projectId) return undefined;
+
+  const [project, rules] = await Promise.all([
+    prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true },
+    }),
+    activeRulesForProject(projectId),
+  ]);
+
+  // Project might have been deleted between resolveOrCreateTrade and this
+  // call (unlikely but possible). Fall back to no context so the upload
+  // still goes through.
+  if (!project) return undefined;
+
+  return {
+    context: {
+      projectId: project.id,
+      projectName: project.name,
+      rules: rules.map((r) => ({
+        id: r.id,
+        description: r.description,
+        category: r.category,
+      })),
+    },
+    rules,
   };
 }
 

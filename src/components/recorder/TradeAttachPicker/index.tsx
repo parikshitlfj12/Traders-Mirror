@@ -33,6 +33,7 @@ import type {
 export function TradeAttachPicker({
   value,
   onChange,
+  projectId,
   disabled,
   className,
 }: TradeAttachPickerProps) {
@@ -43,7 +44,14 @@ export function TradeAttachPicker({
     let cancelled = false;
     setLoading(true);
 
-    fetch(ATTACHABLE_TRADES_ENDPOINT, { cache: "no-store" })
+    // Project-scoped fetch when a project is locked in. Otherwise the global
+    // attachable list (every project + freehand). Cache-busted because the
+    // user might have just created a trade in this very session.
+    const url = projectId
+      ? `${ATTACHABLE_TRADES_ENDPOINT}&projectId=${encodeURIComponent(projectId)}`
+      : ATTACHABLE_TRADES_ENDPOINT;
+
+    fetch(url, { cache: "no-store" })
       .then((r) => r.json() as Promise<AttachableTradesResponse>)
       .then((json) => {
         if (cancelled) return;
@@ -59,9 +67,10 @@ export function TradeAttachPicker({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   const selectValue = value ?? NEW_TRADE_VALUE;
+  const newLabel = projectId ? "+ New trade in this project" : "+ New trade";
 
   return (
     <label className={cn("flex w-full flex-col gap-1.5", className)}>
@@ -83,9 +92,11 @@ export function TradeAttachPicker({
           "disabled:cursor-not-allowed disabled:opacity-50",
         )}
       >
-        <option value={NEW_TRADE_VALUE}>+ New trade</option>
+        <option value={NEW_TRADE_VALUE}>{newLabel}</option>
         {trades.length > 0 && (
-          <optgroup label="Open trades">
+          <optgroup
+            label={projectId ? "Open trades in this project" : "Open trades"}
+          >
             {trades.map((t) => (
               <option key={t.id} value={t.id}>
                 {formatTradeLabel(t)}
