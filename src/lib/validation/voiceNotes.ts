@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import { NOTE_CONTEXT_VALUES } from "@/lib/note-context";
+import { MAX_USER_NOTE_CHARS, normalizeUserNote } from "@/lib/voice-note-user-note";
+
 // =============================================================================
 // Voice note upload — multipart form fields.
 // The audio Blob itself is read out of `formData.get("audio")` in the route;
@@ -30,6 +33,21 @@ const optionalUuid = z
     z.string().uuid().optional(),
   );
 
+const analysisModeField = z
+  .enum(["QUICK", "DEEP"])
+  .optional()
+  .default("QUICK");
+
+const noteContextField = z
+  .enum(NOTE_CONTEXT_VALUES)
+  .optional()
+  .default("POST_TRADE");
+
+const userNoteField = z.preprocess(
+  normalizeUserNote,
+  z.string().max(MAX_USER_NOTE_CHARS).optional(),
+);
+
 export const UploadVoiceNoteFormSchema = z
   .object({
     durationMs: z.coerce.number().int().positive().max(MAX_DURATION_MS),
@@ -42,6 +60,9 @@ export const UploadVoiceNoteFormSchema = z
           ALLOWED_MIME_PREFIXES.some((p) => m.toLowerCase().startsWith(p)),
         { message: "Unsupported audio MIME type" },
       ),
+    analysisMode: analysisModeField,
+    noteContext: noteContextField,
+    userNote: userNoteField,
     // EITHER attach to an existing trade OR create a new one (optionally under
     // a project). Both being present is allowed — the upload route prefers
     // tradeId and ignores projectId in that case.

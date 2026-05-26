@@ -141,6 +141,7 @@ async function prepareSummarizeCall(
           id: true,
           createdAt: true,
           transcript: true,
+          userNote: true,
           payload: true,
         },
       },
@@ -150,10 +151,11 @@ async function prepareSummarizeCall(
 
   if (!trade) return { kind: "failed", reason: "TRADE_NOT_FOUND" };
 
-  // Stub recordings (budget-exceeded / provider-failed earlier) carry an
-  // empty transcript — including them would dilute the prompt with no signal.
+  // Stub recordings (budget-exceeded / provider-failed) may have no transcript;
+  // typed notes still count as analysable signal.
   const realRecordings = trade.voiceNotes.filter(
-    (n) => n.transcript.trim().length > 0,
+    (n) =>
+      n.transcript.trim().length > 0 || (n.userNote?.trim().length ?? 0) > 0,
   );
   if (realRecordings.length === 0) {
     return { kind: "skipped", reason: "NO_RECORDINGS" };
@@ -196,6 +198,7 @@ async function prepareSummarizeCall(
         id: n.id,
         createdAt: n.createdAt.toISOString(),
         transcript: n.transcript,
+        userNote: n.userNote,
         payload: safeParsePayload(n.payload),
       })),
     },

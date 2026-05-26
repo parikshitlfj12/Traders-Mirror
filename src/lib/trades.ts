@@ -317,6 +317,8 @@ export const TradeUserEditSchema = z
     openedAt: z.coerce.date().optional(),
     closedAt: z.coerce.date().nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
+    /** Move trade into/out of a project. Syncs voiceNote.projectId on write. */
+    projectId: z.string().uuid().nullable().optional(),
   })
   .strict();
 export type TradeUserEdit = z.infer<typeof TradeUserEditSchema>;
@@ -362,6 +364,26 @@ export async function applyTradeUpdate(
     if (patch.openedAt !== undefined) data.openedAt = patch.openedAt;
     if (patch.closedAt !== undefined) data.closedAt = patch.closedAt;
     if (patch.notes !== undefined) data.notes = patch.notes;
+
+    if (patch.projectId !== undefined) {
+      if (patch.projectId !== null) {
+        const project = await tx.project.findFirst({
+          where: { id: patch.projectId, userId },
+          select: { id: true },
+        });
+        if (!project) {
+          throw new ApiError("Project not found", 404, "PROJECT_NOT_FOUND");
+        }
+        data.project = { connect: { id: patch.projectId } };
+      } else {
+        data.project = { disconnect: true };
+      }
+      // Denormalised mirror on VoiceNote — must stay in sync (PRD §5).
+      await tx.voiceNote.updateMany({
+        where: { tradeId },
+        data: { projectId: patch.projectId },
+      });
+    }
 
     if (touchedMarketField) {
       data.fieldSources = sources as Prisma.InputJsonValue;

@@ -10,10 +10,15 @@ import {
   buildUploadFormData,
   deriveMicState,
 } from "@/components/recorder/helpers";
+import { NoteContextPicker } from "@/components/recorder/NoteContextPicker";
 import { ProjectAttachPicker } from "@/components/recorder/ProjectAttachPicker";
+import { RecordingUserNoteField } from "@/components/recorder/RecordingUserNoteField";
+import { RecordingAnalysisExtras } from "@/components/recorder/RecordingAnalysisExtras";
+import { RecordingReviewPanel } from "@/components/recorder/RecordingReviewPanel";
 import { TradeAttachPicker } from "@/components/recorder/TradeAttachPicker";
 import { VoicePlayer } from "@/components/recorder/VoicePlayer";
 import { Button } from "@/components/ui/button";
+import { useRecordingAnalysisOptions } from "@/hooks/useRecordingAnalysisOptions";
 import { useRecorder, type RecorderState } from "@/hooks/useRecorder";
 import { formatMmSs } from "@/lib/format";
 
@@ -27,35 +32,26 @@ import type {
   UploadVoiceNoteResponse,
 } from "./types";
 
-// =============================================================================
-// HomeRecorder — orchestrates the mic, recording, review and upload on the
-// homepage AND inside a project (via `lockedProjectId`). The "Attach to"
-// picker chooses between starting a fresh trade or refining an existing one;
-// the rest of the flow mirrors what TradeInlineRecorder does inside the
-// trade detail sheet, sharing the same recorder helpers (deriveMicState,
-// buildUploadFormData) so the two stay behaviourally identical.
-//
-// After a successful upload we router-push to the freshly-created trade in
-// its natural surface — `/trades?id=…` for freehand, `/projects/<projectId>?id=…`
-// when the trade lives inside a project — so the user lands directly on
-// the detail sheet to verify fields without an extra tap.
-// =============================================================================
-
 export function HomeRecorder({ lockedProjectId }: HomeRecorderProps = {}) {
   const recorder = useRecorder();
   const router = useRouter();
+  const {
+    analysisMode,
+    setAnalysisMode,
+    noteContext,
+    setNoteContext,
+    userNote,
+    setUserNote,
+    screenshot: screenshotPicker,
+    reset: resetAnalysis,
+    screenshotMissing,
+    canSubmit,
+    uploadExtras,
+  } = useRecordingAnalysisOptions();
   const [phase, setPhase] = useState<HomeRecorderPhase>({ kind: "idle" });
-  // Picker state — undefined = "+ New trade" (server creates a fresh TODO).
-  // Reset on every fresh recording so a stale selection from a previous
-  // recording can't accidentally attach a new note to the wrong trade.
   const [attachTradeId, setAttachTradeId] = useState<string | undefined>(
     undefined,
   );
-  // Only relevant when attachTradeId is undefined (creating a new trade).
-  // When attaching to an existing trade we hide the picker — that trade's
-  // project is already determined and another picker here would mislead.
-  // When lockedProjectId is supplied, the picker is hidden entirely and we
-  // pass that value through on every upload.
   const [attachProjectId, setAttachProjectId] = useState<string | undefined>(
     undefined,
   );
@@ -90,28 +86,25 @@ export function HomeRecorder({ lockedProjectId }: HomeRecorderProps = {}) {
         setPhase({ kind: "idle" });
         return;
       }
-      // Reset pickers on entering review so the defaults are always
-      // "+ New trade" + (when not locked) "No project".
       setAttachTradeId(undefined);
       if (!lockedProjectId) setAttachProjectId(undefined);
+      resetAnalysis();
       setPhase({ kind: "review", recording: result });
     }
-  }, [phase, recorder, lockedProjectId]);
+  }, [phase, recorder, lockedProjectId, resetAnalysis]);
 
   const onDiscard = useCallback(() => {
     setAttachTradeId(undefined);
     if (!lockedProjectId) setAttachProjectId(undefined);
+    resetAnalysis();
     setPhase({ kind: "idle" });
-  }, [lockedProjectId]);
+  }, [lockedProjectId, resetAnalysis]);
 
   const onSubmit = useCallback(async () => {
     if (phase.kind !== "review") return;
     const recording = phase.recording;
     setPhase({ kind: "uploading", recording });
 
-    // Snapshot the project the user is attaching to BEFORE we reset state on
-    // success. The post-upload redirect needs this even after the picker
-    // values have been cleared.
     const projectForUpload = attachTradeId ? undefined : effectiveProjectId;
 
     try {
@@ -119,9 +112,8 @@ export function HomeRecorder({ lockedProjectId }: HomeRecorderProps = {}) {
         method: "POST",
         body: buildUploadFormData(recording, {
           tradeId: attachTradeId,
-          // Only honoured by the server when creating a new trade — sending
-          // it alongside tradeId is a no-op, but we skip it for clarity.
           projectId: projectForUpload,
+          ...uploadExtras(),
         }),
       });
       const json: UploadVoiceNoteResponse = await response.json();
@@ -145,11 +137,9 @@ export function HomeRecorder({ lockedProjectId }: HomeRecorderProps = {}) {
       }
       setAttachTradeId(undefined);
       setAttachProjectId(undefined);
+      resetAnalysis();
       setPhase({ kind: "idle" });
 
-      // Land the user on the trade detail sheet for the freshly-uploaded
-      // recording. Project-scoped trades open inside the project page so
-      // they keep their context; freehand trades open on /trades.
       const tradeId = json.data.tradeId;
       const destination = projectForUpload
         ? `/projects/${projectForUpload}?id=${tradeId}`
@@ -161,73 +151,97 @@ export function HomeRecorder({ lockedProjectId }: HomeRecorderProps = {}) {
       toast.error("Couldn't save voice note", { description: message });
       setPhase({ kind: "review", recording });
     }
-  }, [phase, attachTradeId, effectiveProjectId, router]);
+  }, [phase, attachTradeId, effectiveProjectId, router, uploadExtras, resetAnalysis]);
 
   const micState = deriveMicState(phase, recorder.state);
 
   return (
     <div className="flex w-full flex-col items-center gap-6">
       <AnimatePresence mode="wait" initial={false}>
-        {phase.kind === "review" ? (
+        {phase.kind === "review" || phase.kind === "uploading" ? (
           <motion.div
             key="review"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
-            className="flex w-full max-w-md flex-col items-center gap-4 rounded-2xl border border-border bg-card/60 p-5 shadow-sm"
+            className="w-full"
           >
-            <div className="flex w-full items-center justify-between text-sm">
-              <span className="font-medium text-foreground">Voice note</span>
-              <span className="text-xs text-muted-foreground">
-                Ready to analyse
-              </span>
-            </div>
-            <VoicePlayer
-              src={phase.recording.objectUrl}
-              durationMs={phase.recording.durationMs}
-              className="w-full"
+            <RecordingReviewPanel
+              left={
+                <>
+                  <VoicePlayer
+                    src={phase.recording.objectUrl}
+                    durationMs={phase.recording.durationMs}
+                    className="w-full"
+                  />
+                  <NoteContextPicker
+                    value={noteContext}
+                    onChange={setNoteContext}
+                    disabled={phase.kind === "uploading"}
+                  />
+                  <RecordingUserNoteField
+                    value={userNote}
+                    onChange={setUserNote}
+                    disabled={phase.kind === "uploading"}
+                  />
+                  {lockedProjectId == null && (
+                    <ProjectAttachPicker
+                      value={attachProjectId}
+                      onChange={(next) => {
+                        setAttachProjectId(next);
+                        setAttachTradeId(undefined);
+                      }}
+                    />
+                  )}
+                  <TradeAttachPicker
+                    value={attachTradeId}
+                    onChange={setAttachTradeId}
+                    projectId={effectiveProjectId}
+                  />
+                </>
+              }
+              right={
+                <RecordingAnalysisExtras
+                  analysisMode={analysisMode}
+                  onAnalysisModeChange={setAnalysisMode}
+                  screenshotMissing={screenshotMissing}
+                  selections={screenshotPicker.selections}
+                  screenshotError={screenshotPicker.error}
+                  onPickGallery={screenshotPicker.pickFromGallery}
+                  onPickCamera={screenshotPicker.pickFromCamera}
+                  onRemoveScreenshot={screenshotPicker.remove}
+                  disabled={phase.kind === "uploading"}
+                />
+              }
+              footer={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={onDiscard}
+                    disabled={phase.kind === "uploading"}
+                    className="flex-1 sm:flex-none sm:min-w-[140px]"
+                  >
+                    Discard
+                  </Button>
+                  <Button
+                    type="button"
+                    size="lg"
+                    onClick={onSubmit}
+                    disabled={!canSubmit || phase.kind === "uploading"}
+                    className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 sm:flex-none sm:min-w-[180px]"
+                  >
+                    {phase.kind === "uploading"
+                      ? "Sending…"
+                      : analysisMode === "DEEP"
+                        ? "Deep analyse"
+                        : "Analyse"}
+                  </Button>
+                </>
+              }
             />
-            {/* Pickers, ordered project → trade so the trade list narrows
-                to "this project" as soon as a project is chosen. When a
-                project is locked from the parent surface (e.g. recording
-                inside /projects/[id]), the project picker is hidden. */}
-            {lockedProjectId == null && (
-              <ProjectAttachPicker
-                value={attachProjectId}
-                onChange={(next) => {
-                  setAttachProjectId(next);
-                  // Reset trade selection when the project changes so we
-                  // never carry a trade-id over that belonged to the
-                  // previously-selected project.
-                  setAttachTradeId(undefined);
-                }}
-              />
-            )}
-            <TradeAttachPicker
-              value={attachTradeId}
-              onChange={setAttachTradeId}
-              projectId={effectiveProjectId}
-            />
-            <div className="flex w-full gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={onDiscard}
-                className="flex-1"
-              >
-                Discard
-              </Button>
-              <Button
-                type="button"
-                size="lg"
-                onClick={onSubmit}
-                className="flex-1"
-              >
-                Analyse
-              </Button>
-            </div>
           </motion.div>
         ) : (
           <motion.div

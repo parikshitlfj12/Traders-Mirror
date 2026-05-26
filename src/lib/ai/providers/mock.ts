@@ -50,7 +50,7 @@ export class MockProvider implements AIProvider {
     return {
       provider: "mock",
       model: "mock-analyze-quick-v1",
-      payload: buildMockPayload(input.transcript),
+      payload: buildMockPayload(input),
       inputTokens: 0,
       outputTokens: 0,
       estimatedCostUsd: 0,
@@ -83,7 +83,7 @@ export class MockProvider implements AIProvider {
 
   async analyzeDeep(input: DeepAnalysisInput): Promise<AnalysisResult> {
     await delay(900);
-    const payload = buildMockPayload(input.transcript);
+    const payload = buildMockPayload(input);
     // Pretend the screenshot was readable — bump confidence on extracted fields.
     payload.extracted_trade = {
       symbol: "EURUSD",
@@ -127,7 +127,14 @@ function buildMockTranscript(seconds: number): string {
   ].join(" ");
 }
 
-function buildMockPayload(transcript: string): BehavioralPayload {
+function buildMockPayload(input: QuickAnalysisInput): BehavioralPayload {
+  const { transcript, projectContext: ctx, userNote } = input;
+  const combinedText = [userNote?.trim(), transcript].filter(Boolean).join(" ");
+  const projectNote =
+    ctx && ctx.rollup.tradeCount > 0
+      ? ` Fits the project's recurring ${ctx.rollup.topPatternTags[0] ?? "behaviour"} pattern seen across ${ctx.rollup.tradeCount} prior trade(s).`
+      : "";
+
   // Run it through the real Zod schema so any drift in the contract surfaces
   // here first, not silently in production with a real provider.
   return BehavioralPayloadV1.parse({
@@ -150,11 +157,11 @@ function buildMockPayload(transcript: string): BehavioralPayload {
     },
     pattern_tags: ["fomo_after_missed_move", "size_undershoot"],
     trigger_events: ["missed_move"],
-    key_phrases: extractKeyPhrases(transcript),
+    key_phrases: extractKeyPhrases(combinedText),
     summary:
       "Entered short after a missed move, took the trade smaller than planned. Acknowledged the chase even while feeling good about the outcome.",
     per_trade_feedback:
-      "Right side of the move but for the wrong reason. Half-size suggests low conviction; the entry rationale was 'don't miss out again' rather than a setup trigger.",
+      `Right side of the move but for the wrong reason. Half-size suggests low conviction; the entry rationale was 'don't miss out again' rather than a setup trigger.${projectNote}`,
     suggested_violations: [
       {
         category: "NO_FOMO_ENTRIES",

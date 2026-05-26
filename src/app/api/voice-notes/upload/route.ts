@@ -2,14 +2,20 @@ import { ApiError, handle, ok } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { deleteAudio, MAX_AUDIO_BYTES, saveAudio } from "@/lib/audio";
 import {
+  deleteScreenshot,
+  screenshotMimeFromPath,
+  type SavedScreenshot,
+} from "@/lib/screenshot";
+import { saveScreenshotsFromFormData } from "@/lib/screenshot-upload";
+import { primaryScreenshotPath } from "@/lib/voice-note-screenshots";
+import {
   BehavioralPayloadV1,
   getAIProvider,
   type PriorTradeContext,
-  type ProjectContextForAnalysis,
 } from "@/lib/ai";
 import { checkBudget, logAIUsage, type LogAIUsageInput } from "@/lib/budget";
+import { loadProjectContextBundle } from "@/lib/project-analysis-context";
 import { prisma } from "@/lib/prisma";
-import { activeRulesForProject, type RuleView } from "@/lib/rules";
 import { regenerateTradeSummarySafe } from "@/lib/trade-summary";
 import {
   computeStatus,
@@ -33,6 +39,9 @@ const MAX_PRIOR_RECORDINGS_FOR_CONTEXT = 10;
 //   - mimeType:    string (required)
 //   - tradeId:     uuid   (optional — attach to an existing TODO/ANALYSED trade)
 //   - projectId:   uuid   (optional — only honoured when creating a new trade)
+//   - noteContext: "PRE_TRADE" | "DURING_TRADE" | "POST_TRADE" | … (default POST_TRADE)
+//   - userNote: string (optional typed note, max 2000 chars)
+//   - screenshots: File[] (required when analysisMode=DEEP; legacy: screenshot)
 //
 // Order of operations is deliberate. Each step has a reason:
 //   1. requireUser()              auth.
@@ -72,9 +81,14 @@ export const POST = handle(async (req: Request) => {
   const meta = UploadVoiceNoteFormSchema.parse({
     durationMs: formData.get("durationMs"),
     mimeType: formData.get("mimeType") ?? audioField.type,
+    analysisMode: formData.get("analysisMode") ?? "QUICK",
+    noteContext: formData.get("noteContext") ?? "POST_TRADE",
+    userNote: formData.get("userNote") ?? undefined,
     tradeId: formData.get("tradeId") ?? undefined,
     projectId: formData.get("projectId") ?? undefined,
   });
+
+  const isDeep = meta.analysisMode === "DEEP";
 
   // Resolve target trade FIRST. If the picker raced against a Mark Complete,
   // we want to fail before writing the audio file to disk.
@@ -92,9 +106,24 @@ export const POST = handle(async (req: Request) => {
     tradeId: trade.id,
   });
 
-  // The audio file is now on disk but not yet referenced by any DB row. If
-  // anything between here and the VoiceNote insert throws, this flag stays
-  // true and the catch block deletes the file to avoid a permanent orphan.
+  let savedScreenshots: SavedScreenshot[] = [];
+  if (isDeep) {
+    try {
+      savedScreenshots = await saveScreenshotsFromFormData({
+        formData,
+        userId: user.id,
+        tradeId: trade.id,
+      });
+    } catch (e) {
+      await deleteAudio(saved.absolutePath);
+      throw e;
+    }
+  }
+  const screenshotPaths = savedScreenshots.map((s) => s.relativePath);
+  const screenshotPath = primaryScreenshotPath(screenshotPaths);
+
+  // Files are on disk but not yet referenced by any DB row. If anything
+  // between here and the VoiceNote insert throws, cleanup deletes orphans.
   let cleanupOnError = true;
   const pendingUsage: LogAIUsageInput[] = [];
 
@@ -112,7 +141,10 @@ export const POST = handle(async (req: Request) => {
           audioPath: saved.relativePath,
           audioDurationMs: meta.durationMs,
           transcript: "",
-          analysisMode: "QUICK",
+          analysisMode: meta.analysisMode,
+          screenshotPath,
+          screenshotPaths:
+            screenshotPaths.length > 0 ? screenshotPaths : undefined,
           payload: {
             error: "budget_exceeded",
             retryable: true,
@@ -122,7 +154,8 @@ export const POST = handle(async (req: Request) => {
           payloadVersion: "v1",
           aiProvider: null,
           aiTier: null,
-          context: "POST_TRADE",
+          context: meta.noteContext,
+          userNote: meta.userNote ?? null,
         },
         select: { id: true, createdAt: true },
       });
@@ -166,27 +199,61 @@ export const POST = handle(async (req: Request) => {
     // Bundles the rule list so the analyser can spot violations in-prompt;
     // we still re-check the resulting payload against active rules below
     // via detectRuleViolations as defence in depth.
-    const projectBundle = await loadProjectContextIfAny(trade.projectId);
+    const projectBundle = trade.projectId
+      ? await loadProjectContextBundle(trade.projectId, trade.id)
+      : undefined;
 
-    const analysis = await provider.analyzeQuick({
+    const analysisInput = {
       transcript: transcription.transcript,
+      userNote: meta.userNote,
       userId: user.id,
       primaryMarket: user.primaryMarket,
       priorContext,
       projectContext: projectBundle?.context,
-    });
+    };
+
+    let analysis;
+    if (isDeep) {
+      if (!provider.analyzeDeep || savedScreenshots.length === 0) {
+        throw new ApiError(
+          "Deep analysis is not available with the current AI provider",
+          503,
+          "DEEP_UNAVAILABLE",
+        );
+      }
+      analysis = await provider.analyzeDeep({
+        ...analysisInput,
+        images: savedScreenshots.map((s) => ({
+          absolutePath: s.absolutePath,
+          mimeType: screenshotMimeFromPath(s.relativePath),
+        })),
+      });
+      pendingUsage.push({
+        userId: user.id,
+        provider: analysis.provider,
+        model: analysis.model,
+        operation: "analyze_deep",
+        inputTokens: analysis.inputTokens,
+        outputTokens: analysis.outputTokens,
+        imageTokens: analysis.imageTokens ?? null,
+        estimatedCostUsd: analysis.estimatedCostUsd,
+      });
+    } else {
+      analysis = await provider.analyzeQuick(analysisInput);
+      pendingUsage.push({
+        userId: user.id,
+        provider: analysis.provider,
+        model: analysis.model,
+        operation: "analyze_quick",
+        inputTokens: analysis.inputTokens,
+        outputTokens: analysis.outputTokens,
+        estimatedCostUsd: analysis.estimatedCostUsd,
+      });
+    }
+
     // Defence in depth: re-validate provider output before persisting it. A
     // real provider could drift; we never want a malformed payload in the DB.
     const payload = BehavioralPayloadV1.parse(analysis.payload);
-    pendingUsage.push({
-      userId: user.id,
-      provider: analysis.provider,
-      model: analysis.model,
-      operation: "analyze_quick",
-      inputTokens: analysis.inputTokens,
-      outputTokens: analysis.outputTokens,
-      estimatedCostUsd: analysis.estimatedCostUsd,
-    });
 
     // Single transaction: VoiceNote insert + Trade merge + status recompute
     // + RuleViolation rows (if the trade lives in a project). Wrapping the
@@ -203,12 +270,16 @@ export const POST = handle(async (req: Request) => {
             audioPath: saved.relativePath,
             audioDurationMs: meta.durationMs,
             transcript: transcription.transcript,
-            analysisMode: "QUICK",
+            analysisMode: meta.analysisMode,
+            screenshotPath,
+            screenshotPaths:
+              screenshotPaths.length > 0 ? screenshotPaths : undefined,
             payload,
             payloadVersion: "v1",
             aiProvider: `${analysis.provider}:${analysis.model}`,
             aiTier: provider.tier,
-            context: "POST_TRADE",
+            context: meta.noteContext,
+            userNote: meta.userNote ?? null,
           },
           select: { id: true },
         });
@@ -304,7 +375,11 @@ export const POST = handle(async (req: Request) => {
     });
   } catch (e) {
     if (cleanupOnError) {
-      await runFailureCleanup(saved.absolutePath, pendingUsage);
+      await runFailureCleanup(
+        saved.absolutePath,
+        savedScreenshots.map((s) => s.absolutePath),
+        pendingUsage,
+      );
     }
     throw e;
   }
@@ -338,11 +413,26 @@ async function loadPriorContextIfAny(
       where: { tradeId },
       orderBy: { createdAt: "asc" },
       take: MAX_PRIOR_RECORDINGS_FOR_CONTEXT,
-      select: { id: true, createdAt: true, transcript: true },
+      select: { id: true, createdAt: true, transcript: true, userNote: true },
     }),
   ]);
 
   if (!tradeRow || recordings.length === 0) return undefined;
+
+  const priorRecordings = recordings
+    .filter(
+      (r) =>
+        r.transcript.trim().length > 0 ||
+        (r.userNote?.trim().length ?? 0) > 0,
+    )
+    .map((r) => ({
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+      transcript: r.transcript,
+      userNote: r.userNote,
+    }));
+
+  if (priorRecordings.length === 0) return undefined;
 
   return {
     knownFields: {
@@ -353,60 +443,7 @@ async function loadPriorContextIfAny(
       size: tradeRow.size == null ? null : Number(tradeRow.size),
       pnl: tradeRow.pnl == null ? null : Number(tradeRow.pnl),
     },
-    priorRecordings: recordings
-      // Skip empty stubs (budget-exceeded or AI-failed earlier recordings) —
-      // they would just dilute the prompt with empty strings.
-      .filter((r) => r.transcript.trim().length > 0)
-      .map((r) => ({
-        id: r.id,
-        createdAt: r.createdAt.toISOString(),
-        transcript: r.transcript,
-      })),
-  };
-}
-
-/**
- * Build the project-context block for `analyzeQuick` AND the active rule set
- * the violations engine matches against. Returned together so the upload
- * route only does one round-trip — the rule list is reused for both.
- *
- * Returns undefined for freehand trades (no projectId) or when the project
- * has zero active rules (no point in seeding the prompt with an empty list).
- */
-interface ProjectContextBundle {
-  context: ProjectContextForAnalysis;
-  rules: ReadonlyArray<RuleView>;
-}
-
-async function loadProjectContextIfAny(
-  projectId: string | null,
-): Promise<ProjectContextBundle | undefined> {
-  if (!projectId) return undefined;
-
-  const [project, rules] = await Promise.all([
-    prisma.project.findUnique({
-      where: { id: projectId },
-      select: { id: true, name: true },
-    }),
-    activeRulesForProject(projectId),
-  ]);
-
-  // Project might have been deleted between resolveOrCreateTrade and this
-  // call (unlikely but possible). Fall back to no context so the upload
-  // still goes through.
-  if (!project) return undefined;
-
-  return {
-    context: {
-      projectId: project.id,
-      projectName: project.name,
-      rules: rules.map((r) => ({
-        id: r.id,
-        description: r.description,
-        category: r.category,
-      })),
-    },
-    rules,
+    priorRecordings,
   };
 }
 
@@ -419,13 +456,21 @@ async function loadProjectContextIfAny(
  * original error and that's what the client should actually see.
  */
 async function runFailureCleanup(
-  absolutePath: string,
+  audioAbsolutePath: string,
+  screenshotAbsolutePaths: ReadonlyArray<string>,
   pendingUsage: ReadonlyArray<LogAIUsageInput>,
 ): Promise<void> {
   try {
-    await deleteAudio(absolutePath);
+    await deleteAudio(audioAbsolutePath);
   } catch (cleanupErr) {
-    console.error("[voice-notes/upload] cleanup failed", cleanupErr);
+    console.error("[voice-notes/upload] audio cleanup failed", cleanupErr);
+  }
+  for (const p of screenshotAbsolutePaths) {
+    try {
+      await deleteScreenshot(p);
+    } catch (cleanupErr) {
+      console.error("[voice-notes/upload] screenshot cleanup failed", cleanupErr);
+    }
   }
   if (pendingUsage.length === 0) return;
   try {

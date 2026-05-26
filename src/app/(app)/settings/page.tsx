@@ -1,12 +1,7 @@
 import type { Metadata } from "next";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { SurfaceCard } from "@/components/layout/SurfaceCard";
 import { requirePageUser } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -22,33 +17,33 @@ export default async function SettingsPage() {
   ];
 
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-col gap-5 py-2 sm:gap-6 sm:py-4">
-      <h1 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
-        Settings
-      </h1>
-      {/* Card stays narrow for readable label/value rows; the section itself
-          is full-width so the heading aligns with the nav edges. */}
-      <Card className="w-full max-w-xl">
-        <CardHeader>
-          <CardTitle>Account</CardTitle>
-          <CardDescription>
-            Read-only for now. Editing lands post-MVP.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 text-sm">
+    <section className="flex w-full flex-col gap-6 py-2">
+      <PageHeader
+        title="Settings"
+        description="Your account preferences. Editing profile fields lands post-MVP."
+      />
+
+      <SurfaceCard variant="elevated" className="overflow-hidden">
+        <div className="border-b border-border/50 bg-brand/5 px-6 py-5">
+          <h2 className="text-lg font-semibold">Account</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Read-only for now — used for timestamps and market-aware AI prompts.
+          </p>
+        </div>
+        <div className="divide-y divide-border/40">
           {rows.map((row) => (
             <div
               key={row.label}
-              className="flex flex-col gap-0.5 border-b border-border/50 pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+              className="flex flex-col gap-0.5 px-6 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
             >
-              <span className="text-muted-foreground">{row.label}</span>
-              <span className="font-medium break-all sm:text-right">
+              <span className="text-sm text-muted-foreground">{row.label}</span>
+              <span className="text-sm font-medium break-all sm:text-right">
                 {row.value}
               </span>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </SurfaceCard>
     </section>
   );
 }

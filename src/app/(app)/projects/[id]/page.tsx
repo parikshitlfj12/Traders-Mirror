@@ -97,7 +97,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
   }));
 
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 py-2">
+    <section className="flex w-full flex-1 flex-col gap-6 py-2">
       <nav className="text-xs text-muted-foreground">
         <Link href="/projects" className="hover:text-foreground">
           ← Projects
@@ -194,8 +194,8 @@ function EmptyTradesState() {
     <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/30 px-6 py-10 text-center">
       <h3 className="font-heading text-base font-medium">No trades yet</h3>
       <p className="max-w-md text-sm text-muted-foreground">
-        Record a voice note from the home screen and pick this project from the
-        attach picker — a new trade will spawn here automatically.
+        Use the recorder above — pick an existing trade in this project or start
+        a new one. It will appear here after analysis.
       </p>
     </div>
   );

@@ -19,6 +19,7 @@ import {
   getPnlTone,
 } from "@/components/trades/helpers";
 import { TradeInlineRecorder } from "@/components/trades/TradeInlineRecorder";
+import { TradeProjectAttach } from "@/components/trades/TradeProjectAttach";
 import { TradeSummaryPanel } from "@/components/trades/TradeSummaryPanel";
 import { TradeVerifyForm } from "@/components/trades/TradeVerifyForm";
 import { VoiceNoteCard } from "@/components/trades/VoiceNoteCard";
@@ -92,6 +93,10 @@ function DetailContent({ trade, timezone }: TradeDetailContentProps) {
       />
 
       <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-5">
+        {!trade.project && trade.status !== "COMPLETED" ? (
+          <TradeProjectAttach tradeId={trade.id} />
+        ) : null}
+
         <TradeVerifyForm
           // Remount on server-driven trade mutations (AI fill, save round-trip)
           // so the form's `useState(initial)` re-seeds — see buildVerifyFormKey
@@ -125,7 +130,10 @@ function DetailContent({ trade, timezone }: TradeDetailContentProps) {
                   createdAt={note.createdAt}
                   durationMs={note.audioDurationMs}
                   analysisMode={note.analysisMode}
+                  screenshotPath={note.screenshotPath}
+                  screenshotPaths={note.screenshotPaths}
                   context={note.context}
+                  userNote={note.userNote}
                   aiProvider={note.aiProvider}
                   aiTier={note.aiTier}
                   transcript={note.transcript}

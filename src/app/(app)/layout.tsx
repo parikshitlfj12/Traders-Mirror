@@ -1,4 +1,5 @@
 import { TopNav } from "@/components/layout/TopNav";
+import { APP_SHELL_CLASS } from "@/components/layout/constants";
 import { requirePageUser } from "@/lib/auth";
 
 // Protected layout for every authenticated page. Guard logic lives here so
@@ -14,12 +15,11 @@ export default async function AppLayout({
     <div className="flex min-h-screen flex-col bg-background">
       <TopNav user={{ email: user.email, displayName: user.displayName }} />
       {/*
-        Padding matches the nav's inner container (px-4) so headings and
-        cards line up with the brand on the left and the user menu on the
-        right at every breakpoint. Pages that want centered hero content
-        (Home, Projects) opt in with their own `items-center` on the section.
+        APP_SHELL_CLASS matches TopNav inner bounds exactly (max-w-7xl + px).
       */}
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6 sm:py-8">
+      <main
+        className={`flex flex-1 flex-col py-6 sm:py-8 ${APP_SHELL_CLASS}`}
+      >
         {children}
       </main>
     </div>

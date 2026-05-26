@@ -54,6 +54,28 @@ export interface TranscribeInput {
   userId: string;
 }
 
+/** Compact prior-trade row for project-scoped analysis (PRD §1.7). */
+export interface ProjectTradeSummary {
+  readonly tradeId: string;
+  readonly symbol: string | null;
+  readonly status: "TODO" | "ANALYSED" | "COMPLETED";
+  readonly pnl: number | null;
+  readonly openedAt: string;
+  readonly disciplineScore: number | null;
+  readonly dominantEmotion: string | null;
+  readonly topFlags: ReadonlyArray<string>;
+  readonly topPatternTags: ReadonlyArray<string>;
+  readonly summarySnippet: string | null;
+}
+
+/** Aggregated behavioural stats across the project so far. */
+export interface ProjectBehavioralRollup {
+  readonly tradeCount: number;
+  readonly violationCount: number;
+  readonly avgDiscipline: number | null;
+  readonly topPatternTags: ReadonlyArray<string>;
+}
+
 export interface ProjectContextForAnalysis {
   projectId: string;
   projectName: string;
@@ -62,6 +84,9 @@ export interface ProjectContextForAnalysis {
     description: string;
     category: string;
   }>;
+  /** Last K trades in this project (oldest-first), excluding the current trade. */
+  recentTrades: ReadonlyArray<ProjectTradeSummary>;
+  rollup: ProjectBehavioralRollup;
 }
 
 /**
@@ -91,11 +116,14 @@ export interface PriorTradeContext {
     id: string;
     createdAt: string;
     transcript: string;
+    userNote?: string | null;
   }>;
 }
 
 export interface QuickAnalysisInput {
   transcript: string;
+  /** Optional trader-typed note for this recording (high-trust for extraction). */
+  userNote?: string;
   userId: string;
   primaryMarket: "FOREX" | "CRYPTO" | "BOTH";
   projectContext?: ProjectContextForAnalysis;
@@ -103,9 +131,13 @@ export interface QuickAnalysisInput {
   priorContext?: PriorTradeContext;
 }
 
+export interface DeepAnalysisImage {
+  readonly absolutePath: string;
+  readonly mimeType: string;
+}
+
 export interface DeepAnalysisInput extends QuickAnalysisInput {
-  imageAbsolutePath: string;
-  imageMimeType: string;
+  readonly images: ReadonlyArray<DeepAnalysisImage>;
 }
 
 export interface SummarizeTradeInput {
@@ -127,6 +159,7 @@ export interface SummarizeTradeInput {
     id: string;
     createdAt: string;
     transcript: string;
+    userNote?: string | null;
     payload: BehavioralPayload | null;
   }>;
 }

@@ -217,9 +217,11 @@ model VoiceNote {
   audioPath       String? // local file path in dev
   audioDurationMs Int?
   transcript      String  @db.Text // "" when AI never ran; payload then carries the error marker
+  userNote        String? @db.Text // optional typed context for this recording
 
-  screenshotPath String?      // null when analysisMode = QUICK
-  analysisMode   AnalysisMode @default(QUICK)
+  screenshotPath  String?      // first image path; null when analysisMode = QUICK
+  screenshotPaths Json?        // string[] of relative paths when multiple Deep images
+  analysisMode    AnalysisMode @default(QUICK)
 
   // BehavioralPayload (see PRD §6). When AI failed/skipped, this is a stub
   // `{ error: "...", retryable: true }` so the row remains queryable.
@@ -241,6 +243,7 @@ model VoiceNote {
 
 enum NoteContext {
   PRE_TRADE
+  DURING_TRADE
   POST_TRADE
   END_OF_DAY
   GENERAL

@@ -84,6 +84,8 @@ export type {
   AIProviderName,
   AIOperation,
   ProjectContextForAnalysis,
+  ProjectBehavioralRollup,
+  ProjectTradeSummary,
 } from "./types";
 export {
   BehavioralPayloadV1,

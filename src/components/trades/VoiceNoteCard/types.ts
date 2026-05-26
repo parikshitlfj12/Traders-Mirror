@@ -20,7 +20,10 @@ export interface VoiceNoteCardProps {
   readonly createdAt: Date;
   readonly durationMs: number | null;
   readonly analysisMode: AnalysisMode;
+  readonly screenshotPath: string | null;
+  readonly screenshotPaths: ReadonlyArray<string>;
   readonly context: NoteContext;
+  readonly userNote: string | null;
   /** Null when AI did not run (budget cap / provider failure). The card
    *  shows a "Pending analysis" pill instead of the provider/tier line. */
   readonly aiProvider: string | null;

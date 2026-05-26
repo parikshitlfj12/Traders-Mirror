@@ -21,12 +21,25 @@ export const metadata: Metadata = {
     template: "%s · Trader's Mirror",
   },
   description: "AI-powered trader psychology and behavioural mirror.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Trader's Mirror",
+  },
+  icons: {
+    icon: "/icons/icon.svg",
+    apple: "/icons/icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
   themeColor: "#0a0a0a",
   width: "device-width",
   initialScale: 1,
+  // iOS Safari: viewportFit=cover lets content extend under the notch so the
+  // dark background fills edge-to-edge when installed as a home-screen app.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

@@ -1,7 +1,14 @@
-import type { TradeStatusFilter } from "./types";
+import { buildTradesHref } from "@/lib/trades-page-url";
+import type { TradeStatusChipsProps } from "./types";
 
-/** Build the href for a chip — the "ALL" chip omits the param entirely so the
- *  default view is just `/trades`. */
-export function buildChipHref(value: TradeStatusFilter): string {
-  return value === "ALL" ? "/trades" : `/trades?status=${value}`;
+export function buildChipHref(
+  value: TradeStatusChipsProps["active"],
+  preserve: Pick<TradeStatusChipsProps, "project" | "tradeId" | "search">,
+): string {
+  return buildTradesHref({
+    status: value,
+    project: preserve.project,
+    tradeId: preserve.tradeId,
+    q: preserve.search,
+  });
 }

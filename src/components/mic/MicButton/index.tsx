@@ -44,9 +44,8 @@ export function MicButton({
       transition={{ type: "spring", stiffness: 280, damping: 20 }}
       whileTap={interactive ? { scale: 0.95 } : undefined}
       className={cn(
-        // Sized for prominence — this is the product's main entry point.
-        // Scales smoothly from compact phone (144px) to desktop hero (240px).
-        "group relative flex size-36 items-center justify-center rounded-full sm:size-44 md:size-52 lg:size-60",
+        // Main entry point — visible but not dominating the page.
+        "group relative flex size-24 items-center justify-center rounded-full sm:size-28 md:size-32 lg:size-36",
         "shadow-lg transition-colors",
         "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30",
         "disabled:cursor-not-allowed",
@@ -97,7 +96,7 @@ const SHELL_TINT: Readonly<Record<MicButtonState, string>> = {
   error: "bg-destructive/15 text-destructive ring-2 ring-destructive/40",
 };
 
-const ICON_SIZE = "size-14 sm:size-16 md:size-20 lg:size-24";
+const ICON_SIZE = "size-8 sm:size-10 md:size-12 lg:size-14";
 
 function StateIcon({ state }: { readonly state: MicButtonState }) {
   switch (state) {
@@ -107,7 +106,7 @@ function StateIcon({ state }: { readonly state: MicButtonState }) {
       return <MicIcon className={cn(ICON_SIZE, "animate-pulse")} />;
     case "recording":
       return (
-        <SquareIcon className="size-12 fill-current sm:size-14 md:size-16 lg:size-20" />
+        <SquareIcon className="size-7 fill-current sm:size-8 md:size-10 lg:size-12" />
       );
     case "processing":
       return <Loader2Icon className={cn(ICON_SIZE, "animate-spin")} />;

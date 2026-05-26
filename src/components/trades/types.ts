@@ -26,7 +26,10 @@ export interface TradeVoiceNoteView {
   readonly createdAt: Date;
   readonly audioDurationMs: number | null;
   readonly analysisMode: AnalysisMode;
+  readonly screenshotPath: string | null;
+  readonly screenshotPaths: ReadonlyArray<string>;
   readonly context: NoteContext;
+  readonly userNote: string | null;
   readonly aiProvider: string | null;
   readonly aiTier: string | null;
   readonly transcript: string;

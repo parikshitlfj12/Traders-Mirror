@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ProjectListCard } from "@/components/projects/ProjectListCard";
 import { buttonVariants } from "@/components/ui/button";
 import { requirePageUser } from "@/lib/auth";
@@ -41,27 +42,21 @@ export default async function ProjectsPage() {
     // No max-width here — the parent <main> in the (app) layout already
     // pins us to the same `max-w-6xl` as the navbar, so the list spans the
     // exact content width the rest of the app uses.
-    <section className="flex w-full flex-1 flex-col gap-5 py-2">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
-            Projects
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Campaign containers — capital, drawdowns, and behavioural rules in
-            one place. Recordings inside a project run with the project&apos;s
-            context.
-          </p>
-        </div>
-        {projects.length > 0 ? (
-          <Link
-            href="/projects/new"
-            className={buttonVariants({ size: "lg" })}
-          >
-            + New project
-          </Link>
-        ) : null}
-      </header>
+    <section className="flex w-full flex-1 flex-col gap-6 py-2">
+      <PageHeader
+        title="Projects"
+        description="Campaign containers — capital, drawdowns, and behavioural rules in one place. Recordings inside a project run with the project's context."
+        action={
+          projects.length > 0 ? (
+            <Link
+              href="/projects/new"
+              className={buttonVariants({ size: "lg" })}
+            >
+              + New project
+            </Link>
+          ) : null
+        }
+      />
 
       {projects.length === 0 ? (
         <EmptyState />

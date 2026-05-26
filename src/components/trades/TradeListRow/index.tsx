@@ -44,9 +44,9 @@ export function TradeListRow({
       type="button"
       onClick={() => onSelect(trade.id)}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-xl border border-border/60 bg-card/40 px-3 py-3 text-left transition-colors",
-        "hover:border-border hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        active && "border-primary/40 bg-card/70 ring-2 ring-primary/30",
+        "group flex w-full items-center gap-4 rounded-xl border border-border/60 bg-card/50 px-4 py-3.5 text-left transition-all",
+        "hover:border-brand/30 hover:bg-card/80 hover:shadow-md hover:shadow-brand/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active && "border-brand/40 bg-brand/5 ring-2 ring-brand/25",
       )}
       aria-pressed={active}
     >

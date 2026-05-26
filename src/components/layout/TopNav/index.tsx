@@ -1,4 +1,5 @@
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { APP_SHELL_CLASS } from "@/components/layout/constants";
 import { Logo } from "@/components/layout/Logo";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { NavLink } from "@/components/layout/NavLink";
@@ -14,7 +15,7 @@ import type { TopNavProps } from "./types";
 export function TopNav({ user }: TopNavProps) {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-card/60 backdrop-blur supports-backdrop-filter:bg-card/40">
-      <div className="container mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
+      <div className={`flex h-14 items-center justify-between gap-3 ${APP_SHELL_CLASS}`}>
         <div className="flex min-w-0 items-center gap-6">
           <Logo href="/" wordmark="responsive" />
           <nav className="hidden items-center gap-1 md:flex">

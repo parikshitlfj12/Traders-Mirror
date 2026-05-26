@@ -1,17 +1,15 @@
 import type { NoteContext } from "@prisma/client";
 
+import { NOTE_CONTEXT_LABEL } from "@/lib/note-context";
+
 import type { BadgeTone } from "./types";
 
 // =============================================================================
 // Static lookups for the voice-note card.
 // =============================================================================
 
-export const CONTEXT_LABEL: Readonly<Record<NoteContext, string>> = {
-  PRE_TRADE: "Pre-trade",
-  POST_TRADE: "Post-trade",
-  END_OF_DAY: "End of day",
-  GENERAL: "General",
-};
+export const CONTEXT_LABEL: Readonly<Record<NoteContext, string>> =
+  NOTE_CONTEXT_LABEL;
 
 /**
  * Human label map for AiUsageLog.operation values. Falls back to the raw

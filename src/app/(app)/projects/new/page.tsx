@@ -21,7 +21,7 @@ export default async function NewProjectPage() {
   await requirePageUser();
 
   return (
-    <section className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 py-2">
+    <section className="flex w-full flex-1 flex-col gap-5 py-2">
       <nav className="text-xs text-muted-foreground">
         <Link href="/projects" className="hover:text-foreground">
           ← Projects

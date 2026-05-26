@@ -1,15 +1,19 @@
 import { HomeRecorder } from "@/components/recorder/HomeRecorder";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { StatsStrip } from "@/components/stats/StatsStrip";
 
-// Home — freehand surface (PRD §11.2 screen 1). The mic + review flow runs
-// client-side via HomeRecorder; analysis cards render once a real AI provider
-// key is configured (see lib/ai/index.ts).
 export default function HomePage() {
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center gap-8 text-center sm:gap-10">
-      <h1 className="font-heading text-2xl font-medium tracking-tight sm:text-3xl">
-        Today
-      </h1>
-      <HomeRecorder />
+    <section className="flex w-full flex-1 flex-col gap-8 py-2 sm:gap-10">
+      <PageHeader
+        title="Today"
+        description="Record how a trade felt, attach broker screenshots for Deep analysis, and let the mirror reflect your discipline back to you."
+        className="text-left"
+      />
+      <StatsStrip />
+      <div className="flex w-full flex-col items-center">
+        <HomeRecorder />
+      </div>
     </section>
   );
 }

@@ -16,7 +16,14 @@ import type { TradeStatusChipsProps } from "./types";
 // the detail sheet so the visual language stays consistent.
 // =============================================================================
 
-export function TradeStatusChips({ active, counts }: TradeStatusChipsProps) {
+export function TradeStatusChips({
+  active,
+  counts,
+  project,
+  tradeId,
+  search,
+}: TradeStatusChipsProps) {
+  const preserve = { project, tradeId, search };
   return (
     <nav
       className="flex flex-wrap items-center gap-1.5"
@@ -27,7 +34,7 @@ export function TradeStatusChips({ active, counts }: TradeStatusChipsProps) {
         return (
           <Link
             key={c.value}
-            href={buildChipHref(c.value)}
+            href={buildChipHref(c.value, preserve)}
             scroll={false}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border border-border/60 px-3 py-1.5 text-xs font-medium transition-colors",
@@ -55,7 +62,5 @@ export function TradeStatusChips({ active, counts }: TradeStatusChipsProps) {
   );
 }
 
-export type {
-  TradeStatusChipsProps,
-  TradeStatusFilter,
-} from "./types";
+export type { TradeStatusChipsProps } from "./types";
+export type { TradeStatusFilter } from "@/lib/trades-page-url";

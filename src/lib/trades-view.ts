@@ -6,6 +6,7 @@ import type {
   TradeVoiceNoteView,
 } from "@/components/trades/types";
 import { readFieldSources } from "@/lib/trades";
+import { listScreenshotPaths } from "@/lib/voice-note-screenshots";
 
 // =============================================================================
 // Trade row → TradeView serialiser.
@@ -49,7 +50,10 @@ export const tradeViewSelect = {
       createdAt: true,
       audioDurationMs: true,
       analysisMode: true,
+      screenshotPath: true,
+      screenshotPaths: true,
       context: true,
+      userNote: true,
       aiProvider: true,
       aiTier: true,
       transcript: true,
@@ -98,7 +102,10 @@ export function toTradeView(t: FetchedTradeForView): TradeView {
       createdAt: n.createdAt,
       audioDurationMs: n.audioDurationMs,
       analysisMode: n.analysisMode,
+      screenshotPath: n.screenshotPath,
+      screenshotPaths: listScreenshotPaths(n),
       context: n.context,
+      userNote: n.userNote,
       aiProvider: n.aiProvider,
       aiTier: n.aiTier,
       transcript: n.transcript,

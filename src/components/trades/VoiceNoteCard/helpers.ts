@@ -11,6 +11,11 @@ export function audioSrcFor(voiceNoteId: string): string {
   return `/api/voice-notes/${voiceNoteId}/audio`;
 }
 
+export function screenshotSrcFor(voiceNoteId: string, index = 0): string {
+  const base = `/api/voice-notes/${voiceNoteId}/screenshot`;
+  return index > 0 ? `${base}?index=${index}` : base;
+}
+
 /** Human label for an AiUsageLog.operation. Unknown ops fall through to
  *  the raw value (graceful forwards-compat). */
 export function operationLabel(op: string): string {

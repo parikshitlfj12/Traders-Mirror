@@ -6,8 +6,9 @@ import {
 } from "@/lib/format";
 
 import { CONTEXT_LABEL } from "./constants";
-import { audioSrcFor } from "./helpers";
+import { audioSrcFor, screenshotSrcFor } from "./helpers";
 import { Badge, CostBreakdownTable, ExpandableSection } from "./parts";
+import { ReanalyzeButton } from "./ReanalyzeButton";
 import type { VoiceNoteCardProps } from "./types";
 
 // =============================================================================
@@ -23,7 +24,9 @@ export function VoiceNoteCard({
   createdAt,
   durationMs,
   analysisMode,
+  screenshotPaths,
   context,
+  userNote,
   aiProvider,
   aiTier,
   transcript,
@@ -32,6 +35,7 @@ export function VoiceNoteCard({
   timezone,
 }: VoiceNoteCardProps) {
   const hasTranscript = transcript.trim().length > 0;
+  const hasUserNote = (userNote?.trim().length ?? 0) > 0;
   const hasUsage = usage.length > 0;
   const analysisDeferred = aiProvider == null;
 
@@ -60,6 +64,27 @@ export function VoiceNoteCard({
         className="w-full"
       />
 
+      {screenshotPaths.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {screenshotPaths.map((_, index) => (
+            <a
+              key={`${id}-ss-${index}`}
+              href={screenshotSrcFor(id, index)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block overflow-hidden rounded-lg border border-border/70 bg-muted/20 transition-colors hover:border-brand/40"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- auth-gated API URL */}
+              <img
+                src={screenshotSrcFor(id, index)}
+                alt={`Trade screenshot ${index + 1}`}
+                className="aspect-video w-full object-cover"
+              />
+            </a>
+          ))}
+        </div>
+      ) : null}
+
       <footer className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>
           Duration{" "}
@@ -76,11 +101,28 @@ export function VoiceNoteCard({
               {aiTier} · {aiProvider}
             </span>
           )}
+          {/* Subtle re-analyze action when analysis already ran — useful after
+              retroactive project attach so the user can refresh with project context. */}
+          {!analysisDeferred && (
+            <ReanalyzeButton voiceNoteId={id} analysisDeferred={false} />
+          )}
         </span>
       </footer>
 
-      {(hasTranscript || hasUsage) && (
+      {/* Prominent retry button when analysis was deferred (budget/AI failure). */}
+      {analysisDeferred && (
+        <ReanalyzeButton voiceNoteId={id} analysisDeferred={true} />
+      )}
+
+      {(hasTranscript || hasUserNote || hasUsage) && (
         <div className="flex flex-col gap-2 border-t border-border/60 pt-3">
+          {hasUserNote && (
+            <ExpandableSection summary="Your note">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+                {userNote}
+              </p>
+            </ExpandableSection>
+          )}
           {hasTranscript && (
             <ExpandableSection summary="Transcript">
               <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">

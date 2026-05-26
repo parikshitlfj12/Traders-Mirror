@@ -1,4 +1,5 @@
 import type { MicButtonState } from "@/components/mic/MicButton";
+import type { RecordingContextChoice } from "@/lib/note-context";
 import type { Recording, RecorderState } from "@/hooks/useRecorder";
 import { pickAudioExtension } from "@/lib/format";
 
@@ -35,12 +36,21 @@ export function deriveMicState(
   return "idle";
 }
 
+export type UploadAnalysisMode = "QUICK" | "DEEP";
+
 export interface BuildUploadFormDataOptions {
   /** When set, the upload is attached to an existing trade. Omit for a
    *  brand-new trade — the server's `resolveOrCreateTrade` will spawn one. */
   readonly tradeId?: string;
   /** Reserved for project-scoped recordings (PRD §1.7). */
   readonly projectId?: string;
+  readonly analysisMode?: UploadAnalysisMode;
+  /** When this recording was taken relative to the trade. */
+  readonly noteContext?: RecordingContextChoice;
+  /** Optional typed note stored on the voice note row. */
+  readonly userNote?: string;
+  /** Required when analysisMode is DEEP (one or more broker screenshots). */
+  readonly screenshots?: ReadonlyArray<File>;
 }
 
 /**
@@ -65,5 +75,16 @@ export function buildUploadFormData(
   formData.append("mimeType", recording.mimeType);
   if (options.tradeId) formData.append("tradeId", options.tradeId);
   if (options.projectId) formData.append("projectId", options.projectId);
+  formData.append("analysisMode", options.analysisMode ?? "QUICK");
+  formData.append("noteContext", options.noteContext ?? "POST_TRADE");
+  const note = options.userNote?.trim();
+  if (note) formData.append("userNote", note);
+  if (options.screenshots?.length) {
+    for (let i = 0; i < options.screenshots.length; i++) {
+      const file = options.screenshots[i];
+      const ext = file.name.split(".").pop() ?? "png";
+      formData.append("screenshots", file, `screenshot-${i}.${ext}`);
+    }
+  }
   return formData;
 }

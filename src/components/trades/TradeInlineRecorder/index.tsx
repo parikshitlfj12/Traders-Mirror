@@ -11,8 +11,12 @@ import {
   buildUploadFormData,
   deriveMicState,
 } from "@/components/recorder/helpers";
+import { NoteContextPicker } from "@/components/recorder/NoteContextPicker";
+import { RecordingUserNoteField } from "@/components/recorder/RecordingUserNoteField";
+import { RecordingAnalysisExtras } from "@/components/recorder/RecordingAnalysisExtras";
 import { VoicePlayer } from "@/components/recorder/VoicePlayer";
 import { Button } from "@/components/ui/button";
+import { useRecordingAnalysisOptions } from "@/hooks/useRecordingAnalysisOptions";
 import { useRecorder } from "@/hooks/useRecorder";
 import { formatMmSs } from "@/lib/format";
 
@@ -23,21 +27,6 @@ import type {
   UploadVoiceNoteResponse,
 } from "./types";
 
-// =============================================================================
-// TradeInlineRecorder — embedded mic+review inside the trade detail sheet.
-//
-// Identical recording lifecycle to HomeRecorder, but:
-//   - the target tradeId is locked (no "Attach to" picker)
-//   - lives inside an expand/collapse so the sheet doesn't always show a mic
-//   - on success it asks Next.js to refresh server data so the new
-//     recording, refined fields and any status promotion appear without a
-//     manual reload
-//
-// Server-side context-passing (prior recordings → AI prompt) is handled by
-// /api/voice-notes/upload — this component just attaches with `tradeId`
-// and lets the route do its job.
-// =============================================================================
-
 export function TradeInlineRecorder({
   tradeId,
   disabled,
@@ -45,6 +34,19 @@ export function TradeInlineRecorder({
 }: TradeInlineRecorderProps) {
   const router = useRouter();
   const recorder = useRecorder();
+  const {
+    analysisMode,
+    setAnalysisMode,
+    noteContext,
+    setNoteContext,
+    userNote,
+    setUserNote,
+    screenshot: screenshotPicker,
+    reset: resetAnalysis,
+    screenshotMissing,
+    canSubmit,
+    uploadExtras,
+  } = useRecordingAnalysisOptions();
   const [phase, setPhase] = useState<RecorderPhase>({ kind: "collapsed" });
 
   useEffect(() => {
@@ -62,10 +64,11 @@ export function TradeInlineRecorder({
   const expand = useCallback(() => setPhase({ kind: "active" }), []);
 
   const collapse = useCallback(() => {
-    if (recorder.state === "recording") return; // safety — don't collapse mid-record
+    if (recorder.state === "recording") return;
     recorder.reset();
+    resetAnalysis();
     setPhase({ kind: "collapsed" });
-  }, [recorder]);
+  }, [recorder, resetAnalysis]);
 
   const onTap = useCallback(async () => {
     if (phase.kind === "error") {
@@ -84,11 +87,15 @@ export function TradeInlineRecorder({
         setPhase({ kind: "active" });
         return;
       }
+      resetAnalysis();
       setPhase({ kind: "review", recording: result });
     }
-  }, [phase, recorder]);
+  }, [phase, recorder, resetAnalysis]);
 
-  const onDiscard = useCallback(() => setPhase({ kind: "active" }), []);
+  const onDiscard = useCallback(() => {
+    resetAnalysis();
+    setPhase({ kind: "active" });
+  }, [resetAnalysis]);
 
   const onSubmit = useCallback(async () => {
     if (phase.kind !== "review") return;
@@ -98,7 +105,10 @@ export function TradeInlineRecorder({
     try {
       const response = await fetch("/api/voice-notes/upload", {
         method: "POST",
-        body: buildUploadFormData(recording, { tradeId }),
+        body: buildUploadFormData(recording, {
+          tradeId,
+          ...uploadExtras(),
+        }),
       });
       const json: UploadVoiceNoteResponse = await response.json();
 
@@ -115,6 +125,7 @@ export function TradeInlineRecorder({
           description: attachSuccessDescription(json.data.tradeStatus),
         });
       }
+      resetAnalysis();
       setPhase({ kind: "collapsed" });
       router.refresh();
     } catch (e) {
@@ -123,7 +134,7 @@ export function TradeInlineRecorder({
       });
       setPhase({ kind: "review", recording });
     }
-  }, [phase, tradeId, router]);
+  }, [phase, tradeId, router, uploadExtras, resetAnalysis]);
 
   const micState = deriveMicState(phase, recorder.state);
 
@@ -135,7 +146,7 @@ export function TradeInlineRecorder({
         size="sm"
         onClick={expand}
         disabled={disabled}
-        className="w-full justify-center gap-2"
+        className="w-full justify-center gap-2 border-brand/30"
       >
         <MicIcon className="h-4 w-4" />
         Record another note
@@ -146,7 +157,14 @@ export function TradeInlineRecorder({
   const showReview = phase.kind === "review" || phase.kind === "uploading";
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/40 p-4">
+    <motion.div
+      key="review"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.18 }}
+      className="flex flex-col gap-3 rounded-xl border border-brand/20 bg-gradient-to-br from-card/80 to-brand/5 p-4 shadow-sm"
+    >
       <header className="flex items-start justify-between gap-2">
         <p className="text-xs text-muted-foreground">{hint}</p>
         {phase.kind !== "uploading" && (
@@ -170,12 +188,33 @@ export function TradeInlineRecorder({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.18 }}
-            className="flex flex-col items-stretch gap-3"
+            className="flex flex-col gap-4"
           >
             <VoicePlayer
               src={phase.recording.objectUrl}
               durationMs={phase.recording.durationMs}
               className="w-full"
+            />
+            <NoteContextPicker
+              value={noteContext}
+              onChange={setNoteContext}
+              disabled={phase.kind === "uploading"}
+            />
+            <RecordingUserNoteField
+              value={userNote}
+              onChange={setUserNote}
+              disabled={phase.kind === "uploading"}
+            />
+            <RecordingAnalysisExtras
+              analysisMode={analysisMode}
+              onAnalysisModeChange={setAnalysisMode}
+              screenshotMissing={screenshotMissing}
+              selections={screenshotPicker.selections}
+              screenshotError={screenshotPicker.error}
+              onPickGallery={screenshotPicker.pickFromGallery}
+              onPickCamera={screenshotPicker.pickFromCamera}
+              onRemoveScreenshot={screenshotPicker.remove}
+              disabled={phase.kind === "uploading"}
             />
             <div className="flex gap-2">
               <Button
@@ -192,10 +231,14 @@ export function TradeInlineRecorder({
                 type="button"
                 size="sm"
                 onClick={onSubmit}
-                disabled={phase.kind === "uploading"}
-                className="flex-1"
+                disabled={phase.kind === "uploading" || !canSubmit}
+                className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {phase.kind === "uploading" ? "Sending…" : "Analyse"}
+                {phase.kind === "uploading"
+                  ? "Sending…"
+                  : analysisMode === "DEEP"
+                    ? "Deep analyse"
+                    : "Analyse"}
               </Button>
             </div>
           </motion.div>
@@ -213,7 +256,7 @@ export function TradeInlineRecorder({
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
 
