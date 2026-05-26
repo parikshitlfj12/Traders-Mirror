@@ -282,9 +282,10 @@ function SelectInput<T extends string>({
       onChange={(e) => onChange(e.target.value as T)}
       disabled={disabled}
       className={cn(
-        "h-10 w-full rounded-md border border-input bg-background px-3 text-sm",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        "disabled:cursor-not-allowed disabled:opacity-50",
+        "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base md:text-sm",
+        "focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        "disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50",
+        "dark:bg-input/30 dark:disabled:bg-input/80",
       )}
     >
       {options.map((opt) => (

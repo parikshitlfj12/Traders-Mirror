@@ -17,8 +17,8 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 import {
+  FORM_ACTION_BUTTON_CLASS,
   FORM_FIELD_CLASS,
-  FORM_SUBMIT_CLASS,
   RULES_PLACEHOLDER,
 } from "./constants";
 import { defaultFormState, validateForm } from "./helpers";
@@ -87,7 +87,7 @@ export function NewProjectForm() {
   }
 
   return (
-    <Card className="mx-auto w-full max-w-2xl">
+    <Card className="w-full">
       <CardHeader>
         <CardTitle>New project</CardTitle>
         <CardDescription>
@@ -234,13 +234,14 @@ export function NewProjectForm() {
               variant="outline"
               onClick={() => router.back()}
               disabled={pending}
+              className={FORM_ACTION_BUTTON_CLASS}
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={pending}
-              className={FORM_SUBMIT_CLASS}
+              className={FORM_ACTION_BUTTON_CLASS}
             >
               {pending ? "Creating project…" : "Create project"}
             </Button>

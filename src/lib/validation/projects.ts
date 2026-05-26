@@ -21,14 +21,16 @@ const moneyNonNegative = z.coerce
   .max(1_000_000_000);
 
 const isoDate = z.coerce.date();
-// Date OR null OR undefined OR empty string — the recorder UI posts "" when
-// the user leaves the optional end date blank, and JSON clients send null.
-// We normalise all three to `undefined` so downstream code only sees a real
-// Date or absence.
-const optionalIsoDate = z
-  .union([isoDate, z.literal(""), z.null()])
-  .optional()
-  .transform((v) => (v instanceof Date ? v : undefined));
+
+/** Blank / null must be stripped before `z.coerce.date()` — coercion turns
+ *  `null` into epoch (1970), which then fails the "after start date" refine. */
+function emptyToUndefined(val: unknown): unknown {
+  if (val === null || val === "" || val === undefined) return undefined;
+  return val;
+}
+
+// Date OR absent — JSON clients send `null`, forms send `""`.
+const optionalIsoDate = z.preprocess(emptyToUndefined, isoDate.optional());
 
 // Hard caps so a slip of the keyboard ("1m chars") can't bloat a row.
 const MAX_NAME = 120;
@@ -48,9 +50,9 @@ export const ProjectCreateSchema = z
   })
   .strict()
   .refine(
-    // Only enforce ordering when an end date is supplied; an open-ended
-    // campaign has no second boundary to compare against.
-    (v) => v.endsAt == null || v.endsAt.getTime() > v.startsAt.getTime(),
+    // Only enforce ordering when an end date is supplied; open-ended campaigns
+    // omit endsAt entirely after optionalIsoDate normalisation.
+    (v) => !v.endsAt || v.endsAt.getTime() > v.startsAt.getTime(),
     {
       message: "End date must be after start date",
       path: ["endsAt"],
@@ -74,7 +76,11 @@ export const ProjectUpdateSchema = z
   .object({
     name: z.string().trim().min(1).max(MAX_NAME).optional(),
     startsAt: isoDate.optional(),
-    endsAt: z.union([isoDate, z.null()]).optional(),
+  // `null` clears an end date; check null before coerce.date (same epoch bug).
+    endsAt: z.preprocess(
+      (val) => (val === "" ? undefined : val),
+      z.union([z.null(), isoDate]).optional(),
+    ),
     startingCapital: moneyPositive.optional(),
     maxDrawdown: moneyPositive.optional(),
     dailyDrawdown: moneyPositive.optional(),
