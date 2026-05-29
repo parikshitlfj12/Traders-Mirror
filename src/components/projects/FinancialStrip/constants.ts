@@ -14,9 +14,9 @@ import type { StatTone } from "./types";
  */
 export const TONE_TEXT_CLASS: Record<StatTone, string> = {
   neutral: "text-foreground",
-  positive: "text-emerald-400",
-  negative: "text-red-400",
-  warning: "text-amber-400",
+  positive: "text-sage",
+  negative: "text-clay",
+  warning: "text-amber",
 };
 
 /**
@@ -27,7 +27,7 @@ export const TONE_TEXT_CLASS: Record<StatTone, string> = {
  */
 export const TONE_CELL_CLASS: Record<StatTone, string> = {
   neutral: "border-border/70 bg-card/40",
-  positive: "border-emerald-500/30 bg-emerald-500/[0.06]",
-  negative: "border-red-500/40 bg-red-500/[0.07]",
-  warning: "border-amber-500/35 bg-amber-500/[0.07]",
+  positive: "border-[var(--sage-line)] bg-[var(--sage-soft)]",
+  negative: "border-[var(--clay-line)] bg-[var(--clay-soft)]",
+  warning: "border-[var(--amber-soft)] bg-[var(--amber-soft)]",
 };

@@ -12,9 +12,9 @@ export const FIXED_CHIPS: ReadonlyArray<ProjectChipConfig> = [
   {
     value: "FREEHAND",
     label: "Freehand",
-    activeClass: "border-slate-500/50 bg-slate-500/15 text-slate-200",
+    activeClass: "border-[var(--border-strong)] bg-[var(--surface-3)] text-ink",
   },
 ];
 
 export const PROJECT_CHIP_ACTIVE =
-  "border-blue-500/50 bg-blue-500/15 text-blue-200";
+  "border-[var(--info-soft)] bg-[var(--info-soft)] text-info";

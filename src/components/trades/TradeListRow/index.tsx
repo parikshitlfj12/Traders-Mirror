@@ -74,7 +74,7 @@ export function TradeListRow({
             {TRADE_STATUS_LABEL[trade.status]}
           </span>
           {trade.project && (
-            <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-300">
+            <span className="rounded bg-[var(--info-soft)] px-1.5 py-0.5 text-[10px] font-medium text-info">
               {trade.project.name}
             </span>
           )}

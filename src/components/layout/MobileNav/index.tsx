@@ -64,7 +64,7 @@ export function MobileNav({ items, user }: MobileNavProps) {
                 className={cn(
                   "flex h-11 items-center rounded-md px-3 text-sm font-medium transition-colors",
                   active
-                    ? "bg-secondary text-secondary-foreground"
+                    ? "bg-[var(--accent-soft)] text-gold"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >

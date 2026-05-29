@@ -248,13 +248,13 @@ function HeaderStatusLine({
   }
   if (missingCount > 0) {
     return (
-      <span className="text-xs text-amber-300">
+      <span className="text-xs text-amber">
         {missingCount} required field{missingCount === 1 ? "" : "s"} to fill
       </span>
     );
   }
   return (
-    <span className="flex items-center gap-1 text-xs text-emerald-400">
+    <span className="flex items-center gap-1 text-xs text-sage">
       <CheckCircle2Icon className="h-3.5 w-3.5" /> Required fields filled
     </span>
   );

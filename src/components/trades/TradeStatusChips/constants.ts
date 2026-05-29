@@ -8,7 +8,7 @@ import type { ChipConfig } from "./types";
 
 export const CHIPS: ReadonlyArray<ChipConfig> = [
   { value: "ALL", label: "All", activeClass: "bg-foreground/10 text-foreground" },
-  { value: "TODO", label: "Todo", activeClass: "bg-amber-500/20 text-amber-200" },
-  { value: "ANALYSED", label: "Analysed", activeClass: "bg-sky-500/20 text-sky-200" },
-  { value: "COMPLETED", label: "Completed", activeClass: "bg-emerald-500/20 text-emerald-200" },
+  { value: "TODO", label: "Todo", activeClass: "bg-[var(--surface-3)] text-ink" },
+  { value: "ANALYSED", label: "Analysed", activeClass: "bg-[var(--accent-soft)] text-gold" },
+  { value: "COMPLETED", label: "Completed", activeClass: "bg-[var(--sage-soft)] text-sage" },
 ];

@@ -28,9 +28,9 @@ export const RULE_CATEGORY_LABEL: Record<RuleCategory, string> = {
 /** Tailwind colour tone per severity — same colour family as FinancialStrip. */
 export const SEVERITY_TONE: Record<Severity, string> = {
   LOW: "bg-muted text-muted-foreground",
-  MEDIUM: "bg-blue-500/15 text-blue-300",
-  HIGH: "bg-amber-500/15 text-amber-300",
-  CRITICAL: "bg-red-500/15 text-red-300",
+  MEDIUM: "bg-[var(--info-soft)] text-info",
+  HIGH: "bg-[var(--amber-soft)] text-amber",
+  CRITICAL: "bg-[var(--clay-soft)] text-clay",
 };
 
 /** Ordered list for severity selectors. */

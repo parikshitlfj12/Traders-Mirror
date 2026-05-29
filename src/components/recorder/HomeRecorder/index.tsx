@@ -297,10 +297,9 @@ function RecorderStatus({
   if (recorderState === "recording") {
     return (
       <div className="flex flex-col items-center gap-1">
-        <span className="font-mono text-base tabular-nums text-foreground">
-          {formatMmSs(durationMs)}
+        <span className="font-mono text-base tabular-nums text-gold">
+          {formatMmSs(durationMs)} · TAP TO STOP
         </span>
-        <p className="text-xs text-muted-foreground">Tap to stop</p>
       </div>
     );
   }
@@ -308,9 +307,9 @@ function RecorderStatus({
     return <p className="text-sm text-muted-foreground">Wrapping up…</p>;
   }
   return (
-    <div className="space-y-1 px-4 text-center">
-      <p className="text-base text-foreground sm:text-lg">
-        Tap. Talk about a trade.
+    <div className="space-y-1.5 px-4 text-center">
+      <p className="font-display text-xl text-foreground sm:text-2xl">
+        Talk about a trade.
       </p>
       <p className="text-sm text-muted-foreground">Up to 5 minutes per note.</p>
     </div>

@@ -18,13 +18,13 @@ export function getDirectionIcon(direction: Direction | null): LucideIcon {
 /** Tailwind text-colour class for the direction icon's container. */
 export function getDirectionTone(direction: Direction | null): string {
   if (direction == null) return "text-muted-foreground";
-  return direction === "LONG" ? "text-emerald-400" : "text-rose-400";
+  return direction === "LONG" ? "text-sage" : "text-clay";
 }
 
 /** Tailwind text-colour class for the PnL value. Null PnL renders muted. */
 export function getPnlTone(pnl: number | null): string {
   if (pnl == null) return "text-muted-foreground";
-  return pnl >= 0 ? "text-emerald-400" : "text-rose-400";
+  return pnl >= 0 ? "text-sage" : "text-clay";
 }
 
 /**

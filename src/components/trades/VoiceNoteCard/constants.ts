@@ -27,8 +27,8 @@ export const OPERATION_LABEL: Readonly<Record<string, string>> = {
 
 export const BADGE_TONE: Readonly<Record<BadgeTone, string>> = {
   default: "bg-muted text-foreground/80",
-  primary: "bg-primary/15 text-primary",
-  accent: "bg-blue-500/15 text-blue-400",
+  primary: "bg-[var(--accent-soft)] text-gold",
+  accent: "bg-[var(--info-soft)] text-info",
   muted: "bg-muted/60 text-muted-foreground",
-  warn: "bg-amber-500/15 text-amber-300",
+  warn: "bg-[var(--amber-soft)] text-amber",
 };

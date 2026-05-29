@@ -35,8 +35,8 @@ export function ProjectListCard({ project, timezone }: ProjectListCardProps) {
               {project.name}
             </h3>
             {live ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
-                <span className="size-1.5 rounded-full bg-emerald-400" aria-hidden />
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--sage-soft)] px-2 py-0.5 text-[10px] font-medium text-sage">
+                <span className="size-1.5 rounded-full bg-sage" aria-hidden />
                 Live
               </span>
             ) : null}

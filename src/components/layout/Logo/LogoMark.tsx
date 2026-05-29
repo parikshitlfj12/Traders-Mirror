@@ -14,7 +14,7 @@ export function LogoMark({ size = "md", className }: LogoMarkProps) {
       className={cn(
         "relative flex shrink-0 select-none items-center justify-center",
         "bg-primary text-primary-foreground",
-        "font-heading font-bold tracking-tighter leading-none",
+        "font-display font-medium tracking-tighter leading-none",
         "shadow-sm ring-1 ring-foreground/10",
         // Subtle 1px top highlight — gives the mark a physical/embossed
         // feel without being loud.

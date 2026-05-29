@@ -20,7 +20,7 @@ export function Logo({
   className,
 }: LogoProps) {
   const wordmarkClass = cn(
-    "font-heading font-semibold tracking-tight leading-none",
+    "font-display italic font-normal tracking-tight leading-none text-ink",
     WORDMARK_STYLES[size],
     wordmark === "responsive" && "hidden sm:inline",
     wordmark === "never" && "hidden",

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import localFont from "next/font/local";
+import { Newsreader, Hanken_Grotesk, IBM_Plex_Mono } from "next/font/google";
 
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
@@ -7,11 +7,27 @@ import { cn } from "@/lib/utils";
 
 import "./globals.css";
 
-// Geist Sans, shipped as a local variable-weight WOFF by create-next-app.
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-sans",
-  weight: "100 900",
+// "Private Journal" type system:
+//   Newsreader      — editorial serif for headings + quotes (the trader's voice)
+//   Hanken Grotesk  — UI/body
+//   IBM Plex Mono   — numbers (prices, P&L, timestamps, confidence)
+const display = Newsreader({
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  weight: ["300", "400", "500"],
+  variable: "--font-display",
+  display: "swap",
+});
+const ui = Hanken_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-ui",
+  display: "swap",
+});
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
   display: "swap",
 });
 
@@ -34,7 +50,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: "#141210",
   width: "device-width",
   initialScale: 1,
   // iOS Safari: viewportFit=cover lets content extend under the notch so the
@@ -48,7 +64,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={cn("dark font-sans", geistSans.variable)}
+      className={cn(
+        "dark font-sans",
+        display.variable,
+        ui.variable,
+        mono.variable,
+      )}
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-background text-foreground antialiased">

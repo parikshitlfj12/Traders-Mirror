@@ -34,7 +34,7 @@ function FieldLabel({
         className="text-xs font-medium text-muted-foreground"
       >
         {label}
-        {required ? <span className="ml-0.5 text-rose-400">*</span> : null}
+        {required ? <span className="ml-0.5 text-clay">*</span> : null}
       </Label>
       <SourceBadge source={source} />
     </div>
@@ -63,7 +63,7 @@ export function TextField({
         className={cn(
           required &&
             value === "" &&
-            "border-rose-500/60 focus-visible:ring-rose-500/40",
+            "border-[var(--clay-line)] focus-visible:ring-[var(--clay-soft)]",
         )}
       />
     </div>
@@ -95,7 +95,7 @@ export function NumberField({
         className={cn(
           required &&
             value == null &&
-            "border-rose-500/60 focus-visible:ring-rose-500/40",
+            "border-[var(--clay-line)] focus-visible:ring-[var(--clay-soft)]",
         )}
       />
     </div>
@@ -126,7 +126,7 @@ export function SelectField({
           "disabled:cursor-not-allowed disabled:opacity-50",
           required &&
             value === "" &&
-            "border-rose-500/60 focus-visible:ring-rose-500/40",
+            "border-[var(--clay-line)] focus-visible:ring-[var(--clay-soft)]",
         )}
       >
         <option value="">—</option>
@@ -171,8 +171,8 @@ function SourceBadge({
       className={cn(
         "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
         high
-          ? "bg-emerald-500/15 text-emerald-300"
-          : "bg-amber-500/15 text-amber-300",
+          ? "bg-[var(--sage-soft)] text-sage"
+          : "bg-[var(--amber-soft)] text-amber",
       )}
     >
       <SparklesIcon className="h-2.5 w-2.5" />

@@ -88,7 +88,7 @@ export function TradeSummaryPanel({
     <section
       className={cn(
         "flex flex-col gap-3 rounded-xl border bg-card/40 p-4",
-        stale ? "border-amber-500/40" : "border-border/70",
+        stale ? "border-[var(--amber-soft)]" : "border-border/70",
       )}
     >
       <header className="flex flex-wrap items-center justify-between gap-2">
@@ -97,7 +97,7 @@ export function TradeSummaryPanel({
           <h3 className="text-sm font-medium text-foreground">Trade summary</h3>
           {stale && (
             <span
-              className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300"
+              className="rounded bg-[var(--amber-soft)] px-1.5 py-0.5 text-[10px] font-medium text-amber"
               title="Auto-regen skipped (likely daily AI budget). Tap Regenerate to retry."
             >
               Pending regen · new recordings since

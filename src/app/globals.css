@@ -5,82 +5,167 @@
 /* Dark mode = `.dark` class on <html> (PRD §11.1 — dark-only MVP). */
 @custom-variant dark (&:is(.dark *));
 
+/* =============================================================================
+   TRADER'S MIRROR — Design System · Direction: "Private Journal"
+   Warm near-black, editorial serif, generous whitespace, a single warm-gold
+   accent, muted semantics (loss is clay, not red). Dark theme only.
+   Hex values below are the canonical source of truth (mirror.css).
+   ============================================================================= */
+
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* ---- Named design tokens (write bg-surface, text-ink-3, etc.) ---- */
+  --bg: #141210;
+  --bg-sunken: #100e0c;
+  --surface: #1a1714;
+  --surface-2: #211d17;
+  --surface-3: #29241d;
+  --scrim: rgba(8, 7, 6, 0.72);
+
+  --border-soft: #2a2620;
+  --border-strong: #39322a;
+  --border-faint: #211d18;
+
+  --ink: #ece6da;
+  --ink-2: #c4bcac;
+  --ink-3: #968d7e;
+  --ink-4: #6b6358;
+
+  --accent: #c2a17a;
+  --accent-hover: #d4b48d;
+  --accent-soft: rgba(194, 161, 122, 0.14);
+  --accent-line: rgba(194, 161, 122, 0.38);
+  --accent-ink: #1c1610;
+
+  --sage: #97ac7e;
+  --sage-soft: rgba(151, 172, 126, 0.14);
+  --sage-line: rgba(151, 172, 126, 0.4);
+  --clay: #c4825f;
+  --clay-soft: rgba(196, 130, 95, 0.14);
+  --clay-line: rgba(196, 130, 95, 0.42);
+  --amber: #cd9b52;
+  --amber-soft: rgba(205, 155, 82, 0.14);
+  --info: #7d9bb0;
+  --info-soft: rgba(125, 155, 176, 0.14);
+
+  /* ---- Radii ---- */
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  /* ---- Spacing scale (4-pt) ---- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+
+  /* ---- Shadows (soft, warm, dark) ---- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px -10px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 24px 60px -22px rgba(0, 0, 0, 0.8);
+  --shadow-accent: 0 18px 50px -20px rgba(194, 161, 122, 0.35);
+
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* ---- shadcn semantic variables (hex — consumed as var(--x) in v4) ---- */
+  --background: #141210;
+  --foreground: #ece6da;
+  --card: #1a1714;
+  --card-foreground: #ece6da;
+  --popover: #1a1714;
+  --popover-foreground: #ece6da;
+  --primary: #c2a17a;
+  --primary-foreground: #1c1610;
+  --secondary: #211d17;
+  --secondary-foreground: #ece6da;
+  --muted: #211d17;
+  --muted-foreground: #968d7e;
+  --accent-foreground: #1c1610;
+  --destructive: #c4825f;
+  --destructive-foreground: #ece6da;
+  --border: #2a2620;
+  --input: #39322a;
+  --ring: #c2a17a;
+  --radius: 0.75rem;
+
+  /* Extra semantic aliases used across the app, remapped to the journal palette. */
+  --brand: #c2a17a;
+  --brand-muted: #968d7e;
+  --success: #97ac7e;
+  --warning: #cd9b52;
+
+  --chart-1: #c2a17a;
+  --chart-2: #97ac7e;
+  --chart-3: #7d9bb0;
+  --chart-4: #cd9b52;
+  --chart-5: #c4825f;
+
+  --sidebar: #1a1714;
+  --sidebar-foreground: #ece6da;
+  --sidebar-primary: #c2a17a;
+  --sidebar-primary-foreground: #1c1610;
+  --sidebar-accent: #211d17;
+  --sidebar-accent-foreground: #ece6da;
+  --sidebar-border: #2a2620;
+  --sidebar-ring: #c2a17a;
 }
 
+/* Dark-only MVP: `.dark` resolves to the same journal palette as :root so the
+   forced-dark theme never flashes a different surface. */
 .dark {
-  --background: oklch(0.12 0.02 265);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.17 0.025 265);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.17 0.025 265);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.72 0.19 285);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.24 0.04 265);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.22 0.03 265);
-  --muted-foreground: oklch(0.72 0.02 265);
-  --accent: oklch(0.28 0.06 285);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.32 0.04 265 / 55%);
-  --input: oklch(0.28 0.04 265 / 80%);
-  --ring: oklch(0.62 0.16 285);
-  --brand: oklch(0.72 0.19 285);
-  --brand-muted: oklch(0.55 0.12 285);
-  --success: oklch(0.72 0.17 155);
-  --warning: oklch(0.82 0.14 85);
-  --info: oklch(0.7 0.14 230);
-  --chart-1: oklch(0.72 0.19 285);
-  --chart-2: oklch(0.72 0.17 155);
-  --chart-3: oklch(0.7 0.14 230);
-  --chart-4: oklch(0.82 0.14 85);
-  --chart-5: oklch(0.65 0.12 25);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #141210;
+  --foreground: #ece6da;
+  --card: #1a1714;
+  --card-foreground: #ece6da;
+  --popover: #1a1714;
+  --popover-foreground: #ece6da;
+  --primary: #c2a17a;
+  --primary-foreground: #1c1610;
+  --secondary: #211d17;
+  --secondary-foreground: #ece6da;
+  --muted: #211d17;
+  --muted-foreground: #968d7e;
+  --accent: #c2a17a;
+  --accent-foreground: #1c1610;
+  --destructive: #c4825f;
+  --destructive-foreground: #ece6da;
+  --border: #2a2620;
+  --input: #39322a;
+  --ring: #c2a17a;
+
+  --brand: #c2a17a;
+  --brand-muted: #968d7e;
+  --success: #97ac7e;
+  --warning: #cd9b52;
+  --info: #7d9bb0;
+
+  --chart-1: #c2a17a;
+  --chart-2: #97ac7e;
+  --chart-3: #7d9bb0;
+  --chart-4: #cd9b52;
+  --chart-5: #c4825f;
+
+  --sidebar: #1a1714;
+  --sidebar-foreground: #ece6da;
+  --sidebar-primary: #c2a17a;
+  --sidebar-primary-foreground: #1c1610;
+  --sidebar-accent: #211d17;
+  --sidebar-accent-foreground: #ece6da;
+  --sidebar-border: #2a2620;
+  --sidebar-ring: #c2a17a;
 }
 
-/* Map the CSS variables above to Tailwind v4 utility tokens so classes like
-   `bg-background`, `text-foreground`, `border-border`, `ring-ring`, etc. work. */
+/* Map CSS variables to Tailwind v4 utility tokens so classes like
+   `bg-background`, `text-foreground`, `border-border`, `bg-surface`,
+   `text-ink-3`, `text-gold`, `font-display`, etc. all resolve. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -114,6 +199,23 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  /* Named journal palette */
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-sunken: var(--bg-sunken);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-gold: var(--accent);
+  --color-gold-hover: var(--accent-hover);
+  --color-sage: var(--sage);
+  --color-clay: var(--clay);
+  --color-amber: var(--amber);
+  --color-border-strong: var(--border-strong);
+  --color-border-faint: var(--border-faint);
+
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -134,8 +236,14 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --font-sans: var(--font-sans);
-  --font-heading: var(--font-sans);
+  --shadow-accent: var(--shadow-accent);
+
+  /* Type families: body = Hanken Grotesk, headings = Newsreader, numbers = Plex Mono */
+  --font-sans: var(--font-ui);
+  --font-heading: var(--font-display);
+  --font-display: var(--font-display);
+  --font-ui: var(--font-ui);
+  --font-mono: var(--font-mono);
 }
 
 @layer utilities {
@@ -149,9 +257,401 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-ui), system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
+  }
+  ::selection {
+    background: var(--accent-soft);
+  }
+  /* Editorial headings default to the serif display face. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display), Georgia, serif;
+  }
+}
+
+/* =============================================================================
+   BESPOKE COMPONENT CLASSES (from the design system — apply to existing markup)
+   ============================================================================= */
+@layer components {
+  /* ---- Editorial type helpers ---- */
+  .t-display-xl {
+    font-family: var(--font-display), Georgia, serif;
+    font-weight: 300;
+    font-size: 44px;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+  .t-display {
+    font-family: var(--font-display), Georgia, serif;
+    font-weight: 300;
+    font-size: 32px;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  .t-title {
+    font-family: var(--font-ui), system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 22px;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+  .t-heading {
+    font-family: var(--font-ui), system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 17px;
+    line-height: 1.35;
+  }
+  .t-label {
+    font-family: var(--font-ui), system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .t-quote {
+    font-family: var(--font-display), Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .t-data {
+    font-family: var(--font-mono), monospace;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* ---- Trade status badge: TODO / ANALYSED / COMPLETED ---- */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px;
+    border-radius: var(--r-pill);
+    font-family: var(--font-ui), system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+  }
+  .badge .d {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .badge-todo {
+    color: var(--ink-3);
+    border-color: var(--border-strong);
+  }
+  .badge-todo .d {
+    background: var(--ink-3);
+  }
+  .badge-analysed {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent-line);
+  }
+  .badge-analysed .d {
+    background: var(--accent);
+  }
+  .badge-completed {
+    background: var(--sage-soft);
+    color: var(--sage);
+    border-color: var(--sage-line);
+  }
+  .badge-completed .d {
+    background: var(--sage);
+  }
+
+  /* ---- Recording context chips (Pre / During / Post) — segmented toggle ---- */
+  .chip-group {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--bg-sunken);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: var(--r-sm);
+    font-family: var(--font-ui), system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink-3);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition:
+      background 0.15s var(--ease),
+      color 0.15s var(--ease);
+  }
+  .chip:hover {
+    color: var(--ink-2);
+  }
+  .chip.is-active {
+    background: var(--surface-3);
+    color: var(--ink);
+    box-shadow: var(--shadow-sm);
+  }
+  .chip .d {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ink-4);
+  }
+  .chip.is-active .d {
+    background: var(--accent);
+  }
+
+  /* ---- Analysis-mode option cards (Quick / Deep) ---- */
+  .seg-opt {
+    background: var(--bg-sunken);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-md);
+    padding: 14px;
+    cursor: pointer;
+    transition:
+      background 0.15s var(--ease),
+      border-color 0.15s var(--ease);
+  }
+  .seg-opt:hover {
+    border-color: var(--ink-4);
+  }
+  .seg-opt.is-active {
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+  }
+
+  /* ---- Screenshot dropzone ---- */
+  .dropzone {
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--r-md);
+    background: var(--bg-sunken);
+    padding: 22px;
+    text-align: center;
+    transition:
+      background 0.15s var(--ease),
+      border-color 0.15s var(--ease);
+  }
+  .dropzone:hover,
+  .dropzone.is-active {
+    border-color: var(--accent-line);
+    background: var(--accent-soft);
+  }
+
+  /* ---- Behavioural flag pills (observational) ---- */
+  .flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: var(--r-pill);
+    white-space: nowrap;
+    font-family: var(--font-ui), system-ui, sans-serif;
+    font-weight: 500;
+    font-size: 12.5px;
+    background: var(--clay-soft);
+    color: var(--clay);
+    border: 1px solid var(--clay-line);
+  }
+  .flag svg {
+    width: 13px;
+    height: 13px;
+  }
+  .flag-neutral {
+    background: var(--surface-2);
+    color: var(--ink-2);
+    border-color: var(--border-strong);
+  }
+
+  /* ---- Emotion chips (read-only payload tags) ---- */
+  .emo {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 11px;
+    border-radius: var(--r-pill);
+    font-family: var(--font-ui), system-ui, sans-serif;
+    font-weight: 500;
+    font-size: 12.5px;
+    background: var(--surface-2);
+    color: var(--ink-2);
+    border: 1px solid var(--border);
+  }
+
+  /* ---- Confidence states (AI field extraction) ---- */
+  .conf {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono), monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .conf-high {
+    color: var(--sage);
+  }
+  .conf-low {
+    color: var(--amber);
+  }
+  .conf .bar {
+    width: 34px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border-strong);
+    overflow: hidden;
+  }
+  .conf .bar > i {
+    display: block;
+    height: 100%;
+  }
+  .conf-high .bar > i {
+    background: var(--sage);
+  }
+  .conf-low .bar > i {
+    background: var(--amber);
+  }
+  .field-low {
+    box-shadow: inset 0 0 0 1px var(--amber-soft);
+  }
+
+  /* ---- 0–10 behavioural meters ---- */
+  .meter .track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+  .meter .track > i {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--accent);
+  }
+  .meter .track > i.sage {
+    background: var(--sage);
+  }
+  .meter .track > i.clay {
+    background: var(--clay);
+  }
+
+  /* ---- "Their own words" quote block + transcript highlight ---- */
+  .quoteblock {
+    border-left: 2px solid var(--accent-line);
+    padding: 4px 0 4px 20px;
+  }
+  .quoteblock p {
+    font-family: var(--font-display), Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 18px;
+    line-height: 1.55;
+    color: var(--ink);
+    margin: 0 0 10px;
+  }
+  .transcript {
+    font-family: var(--font-ui), system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--ink-2);
+  }
+  .transcript mark {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 3px;
+    padding: 0 2px;
+  }
+
+  /* ---- The Mic (hero control — idle / recording) ---- */
+  .mic {
+    width: 104px;
+    height: 104px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    position: relative;
+    background: linear-gradient(180deg, #221d17, #17120e);
+    border: 1px solid var(--border-strong);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 240, 220, 0.06),
+      var(--shadow-lg);
+    transition: transform 0.2s var(--ease);
+  }
+  .mic:hover {
+    transform: scale(1.03);
+  }
+  .mic svg {
+    width: 32px;
+    height: 32px;
+    stroke: var(--accent);
+  }
+  .mic-halo {
+    position: absolute;
+    inset: -32px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--accent-soft), transparent 68%);
+    pointer-events: none;
+  }
+  .mic.is-recording {
+    background: linear-gradient(180deg, #2a211a, #1d160f);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 240, 220, 0.08),
+      var(--shadow-accent);
+  }
+  @keyframes mic-breathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.045);
+    }
+  }
+  .mic-halo.breathe {
+    animation: mic-breathe 4.5s ease-in-out infinite;
+  }
+  @keyframes mic-ring {
+    0% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+    100% {
+      transform: scale(1.9);
+      opacity: 0;
+    }
+  }
+  .mic-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid var(--accent-line);
+    animation: mic-ring 2.6s ease-out infinite;
+    pointer-events: none;
   }
 }

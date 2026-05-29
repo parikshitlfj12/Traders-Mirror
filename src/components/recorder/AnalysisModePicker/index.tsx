@@ -79,7 +79,7 @@ export function AnalysisModePicker({
         })}
       </div>
       {value === "DEEP" && screenshotMissing ? (
-        <p className="text-[11px] text-amber-400/90">
+        <p className="text-[11px] text-amber/90">
           Attach a screenshot below to enable Deep analysis.
         </p>
       ) : null}

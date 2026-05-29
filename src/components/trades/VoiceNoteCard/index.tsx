@@ -125,9 +125,7 @@ export function VoiceNoteCard({
           )}
           {hasTranscript && (
             <ExpandableSection summary="Transcript">
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-                {transcript}
-              </p>
+              <p className="transcript whitespace-pre-wrap">{transcript}</p>
             </ExpandableSection>
           )}
           {hasUsage && (

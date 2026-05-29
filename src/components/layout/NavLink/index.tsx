@@ -24,7 +24,7 @@ export function NavLink({ href, children }: NavLinkProps) {
       className={cn(
         "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
         active
-          ? "bg-secondary text-secondary-foreground"
+          ? "bg-[var(--accent-soft)] text-gold"
           : "text-muted-foreground hover:text-foreground hover:bg-muted",
       )}
     >

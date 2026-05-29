@@ -10,11 +10,7 @@ import {
 
 import { cn } from "@/lib/utils";
 
-import {
-  MIC_ARIA_LABEL,
-  PULSE_VARIANTS,
-  SHELL_VARIANTS,
-} from "./constants";
+import { MIC_ARIA_LABEL, SHELL_VARIANTS } from "./constants";
 import { isMicInteractive } from "./helpers";
 import type { MicButtonProps, MicButtonState } from "./types";
 
@@ -44,28 +40,29 @@ export function MicButton({
       transition={{ type: "spring", stiffness: 280, damping: 20 }}
       whileTap={interactive ? { scale: 0.95 } : undefined}
       className={cn(
-        // Main entry point — visible but not dominating the page.
-        "group relative flex size-24 items-center justify-center rounded-full sm:size-28 md:size-32 lg:size-36",
-        "shadow-lg transition-colors",
+        // "Private Journal" hero: dark gradient disc, gold icon, soft halo.
+        "mic group text-[var(--accent)]",
         "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/30",
         "disabled:cursor-not-allowed",
-        SHELL_TINT[state],
+        state === "recording" && "is-recording",
         className,
       )}
     >
-      <AnimatePresence>
-        {state === "recording" && (
-          <motion.span
-            key="pulse"
+      {/* Idle invites with a soft radial halo; recording makes it breathe + ring out. */}
+      <span
+        aria-hidden
+        className={cn("mic-halo", state === "recording" && "breathe")}
+      />
+      {state === "recording" && (
+        <>
+          <span aria-hidden className="mic-ring" />
+          <span
             aria-hidden
-            initial="hidden"
-            animate="visible"
-            exit="hidden"
-            variants={PULSE_VARIANTS}
-            className="pointer-events-none absolute inset-0 -z-10 rounded-full bg-destructive/40"
+            className="mic-ring"
+            style={{ animationDelay: "1.3s" }}
           />
-        )}
-      </AnimatePresence>
+        </>
+      )}
 
       <AnimatePresence mode="wait" initial={false}>
         <motion.span
@@ -87,14 +84,6 @@ export function MicButton({
 // Render-only helpers — small enough to live alongside the component without
 // earning their own file. Promote to constants.ts if they grow logic.
 // -----------------------------------------------------------------------------
-
-const SHELL_TINT: Readonly<Record<MicButtonState, string>> = {
-  idle: "bg-primary text-primary-foreground hover:shadow-xl",
-  requesting: "bg-primary/80 text-primary-foreground",
-  recording: "bg-destructive text-white",
-  processing: "bg-primary/70 text-primary-foreground",
-  error: "bg-destructive/15 text-destructive ring-2 ring-destructive/40",
-};
 
 const ICON_SIZE = "size-8 sm:size-10 md:size-12 lg:size-14";
 
